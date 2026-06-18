@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { LogOut, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
 import type { SettingsResponse } from '../types';
 
-export function SettingsPage({ onLogout }: { onLogout: () => void }) {
+export function SettingsPage() {
   const [settings, setSettings] = useState<SettingsResponse | undefined>();
   const [saved, setSaved] = useState('');
   const [error, setError] = useState('');
@@ -38,11 +38,6 @@ export function SettingsPage({ onLogout }: { onLogout: () => void }) {
     setSaved('Saved');
   }
 
-  async function logout() {
-    await fetch('/api/logout', { method: 'POST' });
-    onLogout();
-  }
-
   if (!settings) return <div className="boot">Loading settings</div>;
 
   return (
@@ -55,9 +50,6 @@ export function SettingsPage({ onLogout }: { onLogout: () => void }) {
         <div className="actions">
           <button type="submit">
             <Save size={18} /> Save
-          </button>
-          <button type="button" onClick={() => void logout()}>
-            <LogOut size={18} /> Logout
           </button>
         </div>
       </header>

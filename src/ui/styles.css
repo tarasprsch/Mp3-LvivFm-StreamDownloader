@@ -52,6 +52,8 @@ input {
 .sidebar {
   background: #18232f;
   color: #f6f8fa;
+  display: flex;
+  flex-direction: column;
   padding: 18px;
 }
 
@@ -66,6 +68,16 @@ input {
 .sidebar button.active {
   background: #294255;
   color: white;
+}
+
+.sidebarNav {
+  display: grid;
+}
+
+.sidebarFooter {
+  border-top: 1px solid #294255;
+  margin-top: auto;
+  padding-top: 12px;
 }
 
 .brand {
@@ -385,9 +397,28 @@ label {
   .sidebar {
     align-items: center;
     display: flex;
+    flex-direction: row;
     gap: 8px;
     overflow-x: auto;
     padding: 10px;
+  }
+
+  .sidebar > div:first-child {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+  }
+
+  .sidebarNav {
+    display: flex;
+    gap: 8px;
+  }
+
+  .sidebarFooter {
+    border-top: 0;
+    margin-left: auto;
+    margin-top: 0;
+    padding-top: 0;
   }
 
   .brand {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, FileText, Settings, SlidersHorizontal } from 'lucide-react';
+import { Activity, FileText, LogOut, Settings, SlidersHorizontal } from 'lucide-react';
 import { Login } from './components/Login';
 import { LogsPage } from './pages/LogsPage';
 import { MainPage } from './pages/MainPage';
@@ -29,31 +29,45 @@ export function App() {
     return () => clearInterval(timer);
   }, []);
 
+  async function logout() {
+    await fetch('/api/logout', { method: 'POST' });
+    setAuthenticated(false);
+  }
+
   if (authenticated === undefined) return <div className="boot">Lviv FM Stream Recorder</div>;
   if (!authenticated) return <Login onLogin={() => void refresh()} />;
 
   return (
     <div className="app">
       <aside className="sidebar">
-        <div className="brand">
-          <Activity size={22} />
-          <span>Lviv FM</span>
+        <div>
+          <div className="brand">
+            <Activity size={22} />
+            <span>Lviv FM</span>
+          </div>
+          <nav className="sidebarNav" aria-label="Primary">
+            <button className={page === 'main' ? 'active' : ''} onClick={() => setPage('main')}>
+              <SlidersHorizontal size={18} /> Main
+            </button>
+            <button className={page === 'logs' ? 'active' : ''} onClick={() => setPage('logs')}>
+              <FileText size={18} /> Logs
+            </button>
+            <button className={page === 'settings' ? 'active' : ''} onClick={() => setPage('settings')}>
+              <Settings size={18} /> Settings
+            </button>
+          </nav>
         </div>
-        <button className={page === 'main' ? 'active' : ''} onClick={() => setPage('main')}>
-          <SlidersHorizontal size={18} /> Main
-        </button>
-        <button className={page === 'logs' ? 'active' : ''} onClick={() => setPage('logs')}>
-          <FileText size={18} /> Logs
-        </button>
-        <button className={page === 'settings' ? 'active' : ''} onClick={() => setPage('settings')}>
-          <Settings size={18} /> Settings
-        </button>
+        <div className="sidebarFooter">
+          <button onClick={() => void logout()}>
+            <LogOut size={18} /> Logout
+          </button>
+        </div>
       </aside>
       <main>
         {error && <div className="notice danger">{error}</div>}
         {page === 'main' && state && <MainPage state={state} onRefresh={refresh} />}
         {page === 'logs' && <LogsPage />}
-        {page === 'settings' && <SettingsPage onLogout={() => setAuthenticated(false)} />}
+        {page === 'settings' && <SettingsPage />}
       </main>
     </div>
   );
