@@ -12,9 +12,8 @@
   box-shadow: 0 1px 2px rgb(23 33 43 / 6%);
   display: grid;
   gap: 16px;
-  max-width: 380px;
   padding: 24px;
-  width: calc(100vw - 32px);
+  width: min(420px, calc(100vw - 32px));
 }
 
 .login__field {
