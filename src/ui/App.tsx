@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Activity, FileText, LogOut, Settings, SlidersHorizontal } from 'lucide-react';
 import { Login } from './components/Login';
+import { Sidebar } from './components/Sidebar';
 import { LogsPage } from './pages/LogsPage';
 import { MainPage } from './pages/MainPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -40,39 +40,7 @@ export function App() {
 
   return (
     <div className="app">
-      <aside className="app__sidebar">
-        <div>
-          <div className="app__brand">
-            <Activity size={22} />
-            <span>Lviv FM</span>
-          </div>
-          <nav className="app__nav" aria-label="Primary">
-            <button
-              className={page === 'main' ? 'app__nav-button app__nav-button--active' : 'app__nav-button'}
-              onClick={() => setPage('main')}
-            >
-              <SlidersHorizontal size={18} /> Main
-            </button>
-            <button
-              className={page === 'logs' ? 'app__nav-button app__nav-button--active' : 'app__nav-button'}
-              onClick={() => setPage('logs')}
-            >
-              <FileText size={18} /> Logs
-            </button>
-            <button
-              className={page === 'settings' ? 'app__nav-button app__nav-button--active' : 'app__nav-button'}
-              onClick={() => setPage('settings')}
-            >
-              <Settings size={18} /> Settings
-            </button>
-          </nav>
-        </div>
-        <div className="app__sidebar-footer">
-          <button className="app__nav-button" onClick={() => void logout()}>
-            <LogOut size={18} /> Logout
-          </button>
-        </div>
-      </aside>
+      <Sidebar page={page} onPageChange={setPage} onLogout={() => void logout()} />
       <main className="app__main">
         {error && <div className="app__notice app__notice--danger">{error}</div>}
         {page === 'main' && state && <MainPage state={state} onRefresh={refresh} />}

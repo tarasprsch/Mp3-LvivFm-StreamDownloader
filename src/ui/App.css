@@ -4,46 +4,6 @@
   min-height: 100vh;
 }
 
-.app__sidebar {
-  background: #18232f;
-  color: #f6f8fa;
-  display: flex;
-  flex-direction: column;
-  padding: 18px;
-}
-
-.app__brand {
-  align-items: center;
-  display: flex;
-  font-size: 18px;
-  font-weight: 700;
-  gap: 10px;
-  margin-bottom: 22px;
-}
-
-.app__nav {
-  display: grid;
-}
-
-.app__nav-button {
-  background: transparent;
-  color: #cbd5db;
-  justify-content: flex-start;
-  margin-top: 8px;
-  width: 100%;
-}
-
-.app__nav-button--active {
-  background: #294255;
-  color: white;
-}
-
-.app__sidebar-footer {
-  border-top: 1px solid #294255;
-  margin-top: auto;
-  padding-top: 12px;
-}
-
 .app__main {
   padding: 26px;
 }
@@ -69,43 +29,6 @@
 @media (max-width: 760px) {
   .app {
     grid-template-columns: 1fr;
-  }
-
-  .app__sidebar {
-    align-items: center;
-    display: flex;
-    flex-direction: row;
-    gap: 8px;
-    overflow-x: auto;
-    padding: 10px;
-  }
-
-  .app__sidebar > div:first-child {
-    align-items: center;
-    display: flex;
-    gap: 8px;
-  }
-
-  .app__brand {
-    margin: 0 8px 0 0;
-    white-space: nowrap;
-  }
-
-  .app__nav {
-    display: flex;
-    gap: 8px;
-  }
-
-  .app__nav-button {
-    margin: 0;
-    width: auto;
-  }
-
-  .app__sidebar-footer {
-    border-top: 0;
-    margin-left: auto;
-    margin-top: 0;
-    padding-top: 0;
   }
 
   .app__main {
