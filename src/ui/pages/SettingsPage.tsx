@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Save } from 'lucide-react';
 import type { SettingsResponse } from '../types';
+import './SettingsPage.css';
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<SettingsResponse | undefined>();
@@ -38,25 +39,25 @@ export function SettingsPage() {
     setSaved('Saved');
   }
 
-  if (!settings) return <div className="boot">Loading settings</div>;
+  if (!settings) return <div className="settings-page__loading">Loading settings</div>;
 
   return (
-    <form className="settings" onSubmit={submit}>
-      <header className="pageHeader">
+    <form className="settings-page" onSubmit={submit}>
+      <header className="settings-page__header">
         <div>
           <h1>Settings</h1>
           <p>Configuration</p>
         </div>
-        <div className="actions">
+        <div className="settings-page__actions">
           <button type="submit">
             <Save size={18} /> Save
           </button>
         </div>
       </header>
-      <div className="settingsGroups">
-        <section className="settingsGroup">
+      <div className="settings-page__groups">
+        <section className="settings-page__group">
           <h2>Capture Availability</h2>
-          <label className="toggle">
+          <label className="settings-page__toggle">
             <input
               type="checkbox"
               checked={settings.enabled}
@@ -65,10 +66,10 @@ export function SettingsPage() {
             Enabled
           </label>
         </section>
-        <section className="settingsGroup">
+        <section className="settings-page__group">
           <h2>Daily Schedule</h2>
-          <div className="formGrid twoColumns">
-            <label>
+          <div className="settings-page__form-grid settings-page__form-grid--two-columns">
+            <label className="settings-page__field">
               Start time
               <input
                 type="time"
@@ -78,7 +79,7 @@ export function SettingsPage() {
                 }
               />
             </label>
-            <label>
+            <label className="settings-page__field">
               End time
               <input
                 type="time"
@@ -90,9 +91,9 @@ export function SettingsPage() {
             </label>
           </div>
         </section>
-        <section className="settingsGroup">
+        <section className="settings-page__group">
           <h2>File Splitting</h2>
-          <label>
+          <label className="settings-page__field">
             Split size, MB
             <input
               type="number"
@@ -105,9 +106,9 @@ export function SettingsPage() {
             />
           </label>
         </section>
-        <section className="settingsGroup">
+        <section className="settings-page__group">
           <h2>Password Security</h2>
-          <label>
+          <label className="settings-page__field">
             New password
             <input
               type="password"
@@ -117,8 +118,8 @@ export function SettingsPage() {
           </label>
         </section>
       </div>
-      {saved && <div className="notice ok">{saved}</div>}
-      {error && <div className="notice danger">{error}</div>}
+      {saved && <div className="settings-page__notice settings-page__notice--ok">{saved}</div>}
+      {error && <div className="settings-page__notice settings-page__notice--danger">{error}</div>}
     </form>
   );
 }

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { CircleStop, Play, Trash2 } from 'lucide-react';
 import { formatBytes, formatDate, formatDuration } from '../format';
 import type { StateResponse } from '../types';
+import './MainPage.css';
 
 export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh: () => Promise<void> }) {
   const disabledMessage = !state.enabled ? 'Capture is disabled in settings.' : '';
@@ -28,22 +29,22 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
   }
 
   return (
-    <>
-      <header className="pageHeader">
+    <div className="main-page">
+      <header className="main-page__header">
         <div>
           <h1>Main</h1>
           <p>{state.recorder.active ? `${source} recording` : 'Recorder idle'}</p>
         </div>
-        <div className="controlActions">
+        <div className="main-page__control-actions">
           <button
-            className="controlButton start"
+            className="main-page__control-button main-page__control-button--start"
             disabled={!state.enabled || state.recorder.active}
             onClick={() => void command('/api/manual/start')}
           >
             <Play size={24} /> Start
           </button>
           <button
-            className="controlButton stop"
+            className="main-page__control-button main-page__control-button--stop"
             disabled={!state.recorder.active}
             onClick={() => void command('/api/manual/stop')}
           >
@@ -51,8 +52,8 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
           </button>
         </div>
       </header>
-      {disabledMessage && <div className="notice warn">{disabledMessage}</div>}
-      <section className="statusStrip" aria-label="Recorder status">
+      {disabledMessage && <div className="main-page__notice main-page__notice--warn">{disabledMessage}</div>}
+      <section className="main-page__status-strip" aria-label="Recorder status">
         <div>
           <span>Status</span>
           <strong>{recorderState}</strong>
@@ -66,7 +67,7 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
           <strong>{formatBytes(state.recorder.currentSize)}</strong>
         </div>
       </section>
-      <section className="dashboardGroups">
+      <section className="main-page__dashboard-groups">
         <InfoGroup title="Live Recording">
           <InfoRow label="Source" value={source} />
           <InfoRow label="Capture start" value={formatDate(state.recorder.startedAt)} />
@@ -95,7 +96,7 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
           <InfoRow label="Available space" value={state.disk ? formatBytes(state.disk.availableBytes) : '-'} />
         </InfoGroup>
       </section>
-      <section className="wide">
+      <section className="main-page__wide">
         <h2>Recent Sessions</h2>
         <table>
           <thead>
@@ -121,15 +122,15 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
         </table>
       </section>
       {state.partialFiles.length > 0 && (
-        <section className="wide partialFilesPanel">
-          <div className="partialFilesHeader">
+        <section className="main-page__wide main-page__partial-files">
+          <div className="main-page__partial-files-header">
             <div>
               <h2>Partial Files</h2>
               <p>{state.partialFiles.length} unfinished {state.partialFiles.length === 1 ? 'file' : 'files'}</p>
             </div>
           </div>
-          <div className="partialFilesTable" role="table" aria-label="Partial files">
-            <div className="partialFilesHead" role="row">
+          <div className="main-page__partial-files-table" role="table" aria-label="Partial files">
+            <div className="main-page__partial-files-head" role="row">
               <span role="columnheader">File</span>
               <span role="columnheader">Size</span>
               <span role="columnheader">Status</span>
@@ -138,18 +139,33 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
             {state.partialFiles.map((file) => {
               const isCurrent = isCurrentPartialFile(state, file.name);
               return (
-                <div className={isCurrent ? 'partialFile current' : 'partialFile'} key={file.name} role="row">
-                  <span className="partialFileName" role="cell">{file.name}</span>
-                  <span className="partialFileSize" role="cell">{formatBytes(file.size)}</span>
-                  <span className={isCurrent ? 'partialFileStatus current' : 'partialFileStatus'} role="cell">
+                <div
+                  className={
+                    isCurrent
+                      ? 'main-page__partial-file main-page__partial-file--current'
+                      : 'main-page__partial-file'
+                  }
+                  key={file.name}
+                  role="row"
+                >
+                  <span className="main-page__partial-file-name" role="cell">{file.name}</span>
+                  <span className="main-page__partial-file-size" role="cell">{formatBytes(file.size)}</span>
+                  <span
+                    className={
+                      isCurrent
+                        ? 'main-page__partial-file-status main-page__partial-file-status--current'
+                        : 'main-page__partial-file-status'
+                    }
+                    role="cell"
+                  >
                     {isCurrent ? 'Recording' : 'Partial'}
                   </span>
-                  <span className="partialFileAction" role="cell">
+                  <span className="main-page__partial-file-action" role="cell">
                     {isCurrent ? (
-                      <span className="partialFileLocked">Current</span>
+                      <span className="main-page__partial-file-locked">Current</span>
                     ) : (
                       <button
-                        className="iconButton dangerButton"
+                        className="main-page__icon-button main-page__icon-button--danger"
                         type="button"
                         aria-label={`Delete ${file.name}`}
                         title="Delete partial file"
@@ -165,13 +181,13 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
           </div>
         </section>
       )}
-    </>
+    </div>
   );
 }
 
 function InfoGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="infoGroup">
+    <section className="main-page__info-group">
       <h2>{title}</h2>
       <dl>{children}</dl>
     </section>
@@ -180,7 +196,7 @@ function InfoGroup({ title, children }: { title: string; children: ReactNode }) 
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="infoRow">
+    <div className="main-page__info-row">
       <dt>{label}</dt>
       <dd>{value}</dd>
     </div>

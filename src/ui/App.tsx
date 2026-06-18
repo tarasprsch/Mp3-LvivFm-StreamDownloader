@@ -5,6 +5,7 @@ import { LogsPage } from './pages/LogsPage';
 import { MainPage } from './pages/MainPage';
 import { SettingsPage } from './pages/SettingsPage';
 import type { Page, StateResponse } from './types';
+import './App.css';
 
 export function App() {
   const [authenticated, setAuthenticated] = useState<boolean | undefined>(undefined);
@@ -34,37 +35,46 @@ export function App() {
     setAuthenticated(false);
   }
 
-  if (authenticated === undefined) return <div className="boot">Lviv FM Stream Recorder</div>;
+  if (authenticated === undefined) return <div className="app-boot">Lviv FM Stream Recorder</div>;
   if (!authenticated) return <Login onLogin={() => void refresh()} />;
 
   return (
     <div className="app">
-      <aside className="sidebar">
+      <aside className="app__sidebar">
         <div>
-          <div className="brand">
+          <div className="app__brand">
             <Activity size={22} />
             <span>Lviv FM</span>
           </div>
-          <nav className="sidebarNav" aria-label="Primary">
-            <button className={page === 'main' ? 'active' : ''} onClick={() => setPage('main')}>
+          <nav className="app__nav" aria-label="Primary">
+            <button
+              className={page === 'main' ? 'app__nav-button app__nav-button--active' : 'app__nav-button'}
+              onClick={() => setPage('main')}
+            >
               <SlidersHorizontal size={18} /> Main
             </button>
-            <button className={page === 'logs' ? 'active' : ''} onClick={() => setPage('logs')}>
+            <button
+              className={page === 'logs' ? 'app__nav-button app__nav-button--active' : 'app__nav-button'}
+              onClick={() => setPage('logs')}
+            >
               <FileText size={18} /> Logs
             </button>
-            <button className={page === 'settings' ? 'active' : ''} onClick={() => setPage('settings')}>
+            <button
+              className={page === 'settings' ? 'app__nav-button app__nav-button--active' : 'app__nav-button'}
+              onClick={() => setPage('settings')}
+            >
               <Settings size={18} /> Settings
             </button>
           </nav>
         </div>
-        <div className="sidebarFooter">
-          <button onClick={() => void logout()}>
+        <div className="app__sidebar-footer">
+          <button className="app__nav-button" onClick={() => void logout()}>
             <LogOut size={18} /> Logout
           </button>
         </div>
       </aside>
-      <main>
-        {error && <div className="notice danger">{error}</div>}
+      <main className="app__main">
+        {error && <div className="app__notice app__notice--danger">{error}</div>}
         {page === 'main' && state && <MainPage state={state} onRefresh={refresh} />}
         {page === 'logs' && <LogsPage />}
         {page === 'settings' && <SettingsPage />}

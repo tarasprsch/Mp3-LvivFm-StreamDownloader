@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { formatLogLine } from '../format';
+import './LogsPage.css';
 
 export function LogsPage() {
   const [search, setSearch] = useState('');
@@ -17,15 +18,20 @@ export function LogsPage() {
   }, [search]);
 
   return (
-    <>
-      <header className="pageHeader">
+    <div className="logs-page">
+      <header className="logs-page__header">
         <div>
           <h1>Logs</h1>
           <p>{lines.length} entries</p>
         </div>
-        <input className="search" placeholder="Search" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <input
+          className="logs-page__search"
+          placeholder="Search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
       </header>
-      <pre className="logs">{lines.map(formatLogLine).join('\n')}</pre>
-    </>
+      <pre className="logs-page__output">{lines.map(formatLogLine).join('\n')}</pre>
+    </div>
   );
 }

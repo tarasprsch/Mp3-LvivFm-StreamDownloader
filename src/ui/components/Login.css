@@ -1,0 +1,35 @@
+.login {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.login__form {
+  background: white;
+  border: 1px solid #d8e0e5;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgb(23 33 43 / 6%);
+  display: grid;
+  gap: 16px;
+  max-width: 380px;
+  padding: 24px;
+  width: calc(100vw - 32px);
+}
+
+.login__field {
+  color: #40505e;
+  display: grid;
+  font-weight: 650;
+  gap: 8px;
+}
+
+.login__notice {
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.login__notice--danger {
+  background: #ffe0dd;
+  color: #8a1f12;
+}

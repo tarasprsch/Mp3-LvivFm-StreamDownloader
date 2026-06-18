@@ -23,8 +23,8 @@ describe('MainPage partial files', () => {
     expect(screen.getByText('old.mp3.part')).toBeInTheDocument();
     expect(screen.getByLabelText('Delete old.mp3.part')).toBeInTheDocument();
     expect(screen.queryByLabelText('Delete active.mp3.part')).not.toBeInTheDocument();
-    const currentRow = screen.getByText('active.mp3.part').closest('.partialFile');
-    expect(currentRow).toHaveClass('current');
+    const currentRow = screen.getByText('active.mp3.part').closest('.main-page__partial-file');
+    expect(currentRow).toHaveClass('main-page__partial-file--current');
     expect(within(currentRow as HTMLElement).getByText('Recording')).toBeInTheDocument();
     expect(within(currentRow as HTMLElement).getByText('Current')).toBeInTheDocument();
   });
@@ -41,7 +41,9 @@ describe('MainPage partial files', () => {
     render(<MainPage state={pageState} onRefresh={async () => undefined} />);
 
     expect(screen.queryByLabelText('Delete 2026-06-18__01.mp3.123.456.part')).not.toBeInTheDocument();
-    expect(screen.getByText('2026-06-18__01.mp3.123.456.part').closest('.partialFile')).toHaveClass('current');
+    expect(screen.getByText('2026-06-18__01.mp3.123.456.part').closest('.main-page__partial-file')).toHaveClass(
+      'main-page__partial-file--current'
+    );
   });
 
   it('deletes an old partial file and refreshes state', async () => {

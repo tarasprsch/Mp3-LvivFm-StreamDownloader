@@ -1,0 +1,28 @@
+.logs-page__header {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.logs-page__search {
+  max-width: 320px;
+}
+
+.logs-page__output {
+  background: #111820;
+  border-radius: 8px;
+  color: #d8f3dc;
+  min-height: 70vh;
+  overflow: auto;
+  padding: 16px;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 760px) {
+  .logs-page__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
