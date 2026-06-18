@@ -27,6 +27,7 @@ export type RecorderStatus = {
   active: boolean;
   source?: RecorderSource;
   currentFilename?: string;
+  currentPartFilename?: string;
   currentSize: number;
   startedAt?: string;
   durationSeconds: number;
@@ -67,6 +68,7 @@ export class Recorder extends EventEmitter {
       active: this.active,
       source: this.session?.source,
       currentFilename: this.currentFilename || undefined,
+      currentPartFilename: this.currentPartPath ? path.basename(this.currentPartPath) : undefined,
       currentSize: this.currentSize,
       startedAt: this.session?.startedAt.toISOString(),
       durationSeconds: this.session ? Math.round((now - this.session.startedAt.getTime()) / 1000) : 0,

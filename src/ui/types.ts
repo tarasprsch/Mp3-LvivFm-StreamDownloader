@@ -6,6 +6,7 @@ export type StateResponse = {
     active: boolean;
     source?: 'manual' | 'scheduled';
     currentFilename?: string;
+    currentPartFilename?: string;
     currentSize: number;
     startedAt?: string;
     durationSeconds: number;

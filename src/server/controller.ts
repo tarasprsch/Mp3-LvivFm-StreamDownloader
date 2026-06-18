@@ -1,7 +1,7 @@
 import { statfs } from 'node:fs/promises';
 import { EventEmitter } from 'node:events';
 import { type AppConfig, type ConfigStore } from './config.js';
-import { listPartialRecordings } from './files.js';
+import { deletePartialRecording, listPartialRecordings, PartialRecordingDeleteError } from './files.js';
 import type { AppLogger } from './logger.js';
 import { Recorder, type RecorderSession, type RecorderSource, type RecorderStatus } from './recorder.js';
 import { getScheduleState, isScheduleChanged } from './schedule.js';
@@ -98,6 +98,26 @@ export class CaptureController extends EventEmitter {
     this.blockedWindowId = schedule.active ? schedule.windowId : undefined;
     await this.recorder.stop();
     return { ok: true };
+  }
+
+  async deletePartialFile(name: string): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+    if (isCurrentPartialFile(this.recorder.status, name)) {
+      return { ok: false, error: 'Current recording partial file cannot be deleted.', status: 409 };
+    }
+
+    try {
+      await deletePartialRecording(this.configStore.value.recording.outputDirectory, name);
+      return { ok: true };
+    } catch (error) {
+      if (error instanceof PartialRecordingDeleteError) {
+        return {
+          ok: false,
+          error: error.message,
+          status: error.code === 'not-found' ? 404 : 400
+        };
+      }
+      return { ok: false, error: describeError(error), status: 500 };
+    }
   }
 
   async status() {
@@ -244,4 +264,9 @@ async function readDisk(directory: string) {
 function describeError(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+function isCurrentPartialFile(status: RecorderStatus, name: string): boolean {
+  if (name === status.currentPartFilename) return true;
+  return Boolean(status.active && status.currentFilename && name.startsWith(`${status.currentFilename}.`) && name.endsWith('.part'));
 }

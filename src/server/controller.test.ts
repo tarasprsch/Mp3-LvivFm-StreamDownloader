@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -35,16 +35,56 @@ describe('capture controller transitions', () => {
       lastError: 'stream dropped'
     });
   });
+
+  it('refuses to delete the current active partial file', async () => {
+    const fakeRecorder = new FakeRecorder();
+    fakeRecorder.currentPartFilename = 'active.mp3.part';
+    const { controller } = await fixture({}, fakeRecorder);
+
+    await expect(controller.deletePartialFile('active.mp3.part')).resolves.toEqual({
+      ok: false,
+      error: 'Current recording partial file cannot be deleted.',
+      status: 409
+    });
+  });
+
+  it('refuses to delete the generated current partial file when only the final filename is known', async () => {
+    const fakeRecorder = new FakeRecorder();
+    fakeRecorder.active = true;
+    fakeRecorder.currentFilename = '2026-06-18__01.mp3';
+    const { controller } = await fixture({}, fakeRecorder);
+
+    await expect(controller.deletePartialFile('2026-06-18__01.mp3.123.456.part')).resolves.toEqual({
+      ok: false,
+      error: 'Current recording partial file cannot be deleted.',
+      status: 409
+    });
+  });
+
+  it('deletes an old partial file from the output directory', async () => {
+    const { controller, outputDirectory } = await fixture();
+    await writeFile(path.join(outputDirectory, 'old.mp3.part'), 'abc');
+
+    await expect(controller.deletePartialFile('old.mp3.part')).resolves.toEqual({ ok: true });
+
+    await expect(controller.status()).resolves.toMatchObject({
+      partialFiles: []
+    });
+  });
 });
 
 class FakeRecorder extends EventEmitter implements RecorderLike {
   active = false;
+  currentFilename: string | undefined;
+  currentPartFilename: string | undefined;
   private session: RecorderSession | undefined;
 
   get status(): RecorderStatus {
     return {
       active: this.active,
       source: this.session?.source,
+      currentFilename: this.currentFilename,
+      currentPartFilename: this.currentPartFilename,
       currentSize: 0,
       durationSeconds: 0,
       filesInSession: 0,
@@ -105,5 +145,5 @@ async function fixture(overrides: Partial<typeof defaultConfig> = {}, recorder =
   const stats = new StatsStore(directory);
   await stats.load();
   const controller = new CaptureController(configStore, logger, stats, recorder);
-  return { controller, recorder };
+  return { controller, recorder, outputDirectory };
 }

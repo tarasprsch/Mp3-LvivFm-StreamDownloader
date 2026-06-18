@@ -1,4 +1,4 @@
-import { mkdir, readdir, rename, stat } from 'node:fs/promises';
+import { mkdir, readdir, rename, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
 export type PartialRecording = {
@@ -14,7 +14,7 @@ export async function ensureOutputDirectory(directory: string): Promise<void> {
 export async function listPartialRecordings(directory: string): Promise<PartialRecording[]> {
   await ensureOutputDirectory(directory);
   const names = await readdir(directory);
-  const partials = names.filter((name) => name.endsWith('.part')).sort();
+  const partials = names.filter((name) => name.endsWith('.part')).sort().reverse();
   return Promise.all(
     partials.map(async (name) => ({
       name,
@@ -22,6 +22,30 @@ export async function listPartialRecordings(directory: string): Promise<PartialR
       size: (await stat(path.join(directory, name))).size
     }))
   );
+}
+
+export async function deletePartialRecording(directory: string, name: string): Promise<void> {
+  if (!isSafePartialRecordingName(name)) {
+    throw new PartialRecordingDeleteError('Only partial recording files can be deleted.', 'invalid-name');
+  }
+
+  try {
+    await unlink(path.join(directory, name));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new PartialRecordingDeleteError('Partial file was not found.', 'not-found');
+    }
+    throw error;
+  }
+}
+
+export class PartialRecordingDeleteError extends Error {
+  constructor(
+    message: string,
+    readonly code: 'invalid-name' | 'not-found'
+  ) {
+    super(message);
+  }
 }
 
 export async function nextRecordingNumber(directory: string, sessionDate: string): Promise<number> {
@@ -72,4 +96,8 @@ async function exists(filePath: string): Promise<boolean> {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isSafePartialRecordingName(name: string): boolean {
+  return Boolean(name) && name.endsWith('.part') && !name.includes('/') && !name.includes('\\') && path.basename(name) === name;
 }

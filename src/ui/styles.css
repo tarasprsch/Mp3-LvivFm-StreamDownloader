@@ -208,6 +208,118 @@ td {
   padding: 6px 10px;
 }
 
+.partialFilesPanel {
+  padding: 14px 16px;
+}
+
+.partialFilesHeader {
+  align-items: baseline;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.partialFilesHeader h2 {
+  margin-bottom: 2px;
+}
+
+.partialFilesHeader p {
+  font-size: 13px;
+}
+
+.partialFilesTable {
+  border: 1px solid #e2e8ec;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.partialFilesHead,
+.partialFile {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) 96px 104px 48px;
+}
+
+.partialFilesHead {
+  background: #f3f6f8;
+  color: #687782;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 32px;
+  padding: 0 10px;
+  text-transform: uppercase;
+}
+
+.partialFile {
+  border-top: 1px solid #e8edf0;
+  min-height: 40px;
+  padding: 5px 8px 5px 10px;
+}
+
+.partialFile.current {
+  background: #edf8f4;
+  color: #17633f;
+}
+
+.partialFileName,
+.partialFileSize,
+.partialFileStatus,
+.partialFileLocked {
+  display: block;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.partialFileName {
+  color: #22313f;
+  font-weight: 400;
+}
+
+.partialFileSize {
+  color: #687782;
+}
+
+.partialFile.current .partialFileName,
+.partialFile.current .partialFileSize {
+  color: #17633f;
+}
+
+.partialFileStatus {
+  background: #eef3f5;
+  border-radius: 999px;
+  color: #52616d;
+  justify-self: start;
+  padding: 3px 8px;
+}
+
+.partialFileStatus.current {
+  background: #d9f0e5;
+  color: #17633f;
+}
+
+.partialFileAction {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.partialFileLocked {
+  color: #26734f;
+  font-size: 12px;
+}
+
+.iconButton {
+  justify-content: center;
+  min-height: 30px;
+  min-width: 30px;
+  padding: 0;
+}
+
+.dangerButton {
+  background: #9f3427;
+}
+
 .statusStrip {
   background: #17212b;
   border-radius: 8px;
@@ -462,5 +574,28 @@ label {
 
   .infoRow dd {
     text-align: left;
+  }
+
+  .partialFilesHead {
+    display: none;
+  }
+
+  .partialFile {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 6px;
+  }
+
+  .partialFileName {
+    grid-column: 1 / -1;
+  }
+
+  .partialFileSize,
+  .partialFileStatus {
+    align-self: center;
+  }
+
+  .partialFileAction {
+    grid-column: 2;
+    grid-row: 2;
   }
 }

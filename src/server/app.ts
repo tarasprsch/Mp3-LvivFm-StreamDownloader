@@ -86,6 +86,11 @@ export function createApp(options: {
     response.json(await options.controller.manualStop());
   });
 
+  app.delete('/api/partial-files/:name', async (request, response) => {
+    const result = await options.controller.deletePartialFile(request.params.name);
+    response.status(result.ok ? 200 : result.status).json(result);
+  });
+
   app.get('/api/logs', async (request, response) => {
     const search = typeof request.query.search === 'string' ? request.query.search : '';
     response.json({ lines: await options.logger.recent(search) });

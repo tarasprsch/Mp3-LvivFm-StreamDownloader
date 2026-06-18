@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CircleStop, Play } from 'lucide-react';
+import { CircleStop, Play, Trash2 } from 'lucide-react';
 import { formatBytes, formatDate, formatDuration } from '../format';
 import type { StateResponse } from '../types';
 
@@ -13,6 +13,16 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
     if (!response.ok) {
       const body = await response.json().catch(() => ({ error: 'Command failed.' }));
       alert(body.error);
+    }
+    await onRefresh();
+  }
+
+  async function deletePartialFile(name: string) {
+    const response = await fetch(`/api/partial-files/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ error: 'Delete failed.' }));
+      alert(body.error);
+      return;
     }
     await onRefresh();
   }
@@ -111,12 +121,47 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
         </table>
       </section>
       {state.partialFiles.length > 0 && (
-        <section className="wide">
-          <h2>Partial Files</h2>
-          <div className="chips">
-            {state.partialFiles.map((file) => (
-              <span key={file.name}>{file.name} - {formatBytes(file.size)}</span>
-            ))}
+        <section className="wide partialFilesPanel">
+          <div className="partialFilesHeader">
+            <div>
+              <h2>Partial Files</h2>
+              <p>{state.partialFiles.length} unfinished {state.partialFiles.length === 1 ? 'file' : 'files'}</p>
+            </div>
+          </div>
+          <div className="partialFilesTable" role="table" aria-label="Partial files">
+            <div className="partialFilesHead" role="row">
+              <span role="columnheader">File</span>
+              <span role="columnheader">Size</span>
+              <span role="columnheader">Status</span>
+              <span role="columnheader">Action</span>
+            </div>
+            {state.partialFiles.map((file) => {
+              const isCurrent = isCurrentPartialFile(state, file.name);
+              return (
+                <div className={isCurrent ? 'partialFile current' : 'partialFile'} key={file.name} role="row">
+                  <span className="partialFileName" role="cell">{file.name}</span>
+                  <span className="partialFileSize" role="cell">{formatBytes(file.size)}</span>
+                  <span className={isCurrent ? 'partialFileStatus current' : 'partialFileStatus'} role="cell">
+                    {isCurrent ? 'Recording' : 'Partial'}
+                  </span>
+                  <span className="partialFileAction" role="cell">
+                    {isCurrent ? (
+                      <span className="partialFileLocked">Current</span>
+                    ) : (
+                      <button
+                        className="iconButton dangerButton"
+                        type="button"
+                        aria-label={`Delete ${file.name}`}
+                        title="Delete partial file"
+                        onClick={() => void deletePartialFile(file.name)}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
@@ -144,4 +189,14 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 function titleCase(value: string): string {
   return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
+}
+
+function isCurrentPartialFile(state: StateResponse, name: string): boolean {
+  if (name === state.recorder.currentPartFilename) return true;
+  return Boolean(
+    state.recorder.active &&
+      state.recorder.currentFilename &&
+      name.startsWith(`${state.recorder.currentFilename}.`) &&
+      name.endsWith('.part')
+  );
 }
