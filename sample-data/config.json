@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "stream": {
+    "url": "https://onair.lviv.fm:8443/lviv.fm"
+  },
+  "schedule": {
+    "start": "23:00",
+    "end": "06:00",
+    "timezone": "Europe/Kyiv"
+  },
+  "recording": {
+    "splitSize": 19.2,
+    "outputDirectory": "/mp3"
+  },
+  "web": {
+    "host": "0.0.0.0",
+    "port": 11080
+  },
+  "auth": {
+    "password": "change-me"
+  }
+}

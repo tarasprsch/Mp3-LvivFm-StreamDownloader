@@ -1,0 +1,13 @@
+services:
+  lviv-fm-recorder:
+    build: .
+    image: lviv-fm-stream-recorder:latest
+    container_name: lviv-fm-stream-recorder
+    restart: unless-stopped
+    ports:
+      - "11080:11080"
+    volumes:
+      - ./data:/data
+      - ./mp3:/mp3
+    environment:
+      NODE_ENV: production
