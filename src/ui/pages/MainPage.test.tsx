@@ -8,6 +8,15 @@ describe('MainPage partial files', () => {
     vi.restoreAllMocks();
   });
 
+  it('disables the stop button when recording is stopped', () => {
+    const pageState = state();
+    pageState.recorder.active = false;
+
+    render(<MainPage state={pageState} onRefresh={async () => undefined} />);
+
+    expect(screen.getByRole('button', { name: /stop/i })).toBeDisabled();
+  });
+
   it('shows partial files in rows and protects the current recording partial', () => {
     render(<MainPage state={state()} onRefresh={async () => undefined} />);
 

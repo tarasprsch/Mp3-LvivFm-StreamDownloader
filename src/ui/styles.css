@@ -144,6 +144,10 @@ p {
   background: #9f3427;
 }
 
+.controlButton.stop:disabled {
+  background: #9aa8b1;
+}
+
 .grid {
   display: grid;
   gap: 12px;
