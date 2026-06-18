@@ -114,6 +114,24 @@ p {
   gap: 10px;
 }
 
+.controlActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.controlButton {
+  font-size: 18px;
+  font-weight: 750;
+  min-height: 56px;
+  min-width: 132px;
+  padding: 0 22px;
+}
+
+.controlButton.stop {
+  background: #9f3427;
+}
+
 .grid {
   display: grid;
   gap: 12px;
@@ -178,6 +196,86 @@ td {
   padding: 6px 10px;
 }
 
+.statusStrip {
+  background: #17212b;
+  border-radius: 8px;
+  color: white;
+  display: grid;
+  gap: 1px;
+  grid-template-columns: 0.75fr 1.75fr 0.75fr;
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.statusStrip div {
+  background: #1f2d3a;
+  min-width: 0;
+  padding: 16px;
+}
+
+.statusStrip span,
+.infoRow dt {
+  color: #687782;
+  display: block;
+  font-size: 13px;
+}
+
+.statusStrip span {
+  color: #aebbc5;
+  margin-bottom: 8px;
+}
+
+.statusStrip strong {
+  display: block;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+.dashboardGroups {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.infoGroup {
+  background: white;
+  border: 1px solid #d8e0e5;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgb(23 33 43 / 6%);
+  padding: 16px;
+}
+
+.infoGroup dl {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.infoRow {
+  align-items: baseline;
+  border-top: 1px solid #e8edf0;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.2fr);
+  padding: 11px 0;
+}
+
+.infoRow:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.infoRow:last-child {
+  padding-bottom: 0;
+}
+
+.infoRow dd {
+  font-weight: 700;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
 .notice {
   border-radius: 6px;
   margin-bottom: 14px;
@@ -240,11 +338,31 @@ label {
   padding: 20px;
 }
 
+.settingsGroups {
+  display: grid;
+  gap: 18px;
+}
+
+.settingsGroup {
+  border-top: 1px solid #e2e8ec;
+  padding-top: 18px;
+}
+
+.settingsGroup:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
 .formGrid {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   margin: 18px 0;
+}
+
+.formGrid.twoColumns {
+  grid-template-columns: repeat(2, minmax(190px, 1fr));
+  margin-bottom: 0;
 }
 
 .toggle {
@@ -289,5 +407,29 @@ label {
   .pageHeader {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .controlActions,
+  .controlButton {
+    width: 100%;
+  }
+
+  .controlButton {
+    justify-content: center;
+  }
+
+  .statusStrip,
+  .dashboardGroups,
+  .formGrid.twoColumns {
+    grid-template-columns: 1fr;
+  }
+
+  .infoRow {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .infoRow dd {
+    text-align: left;
   }
 }

@@ -1,10 +1,12 @@
+import type { ReactNode } from 'react';
 import { CircleStop, Play } from 'lucide-react';
-import { Metric } from '../components/Metric';
 import { formatBytes, formatDate, formatDuration } from '../format';
 import type { StateResponse } from '../types';
 
 export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh: () => Promise<void> }) {
   const disabledMessage = !state.enabled ? 'Capture is disabled in settings.' : '';
+  const recorderState = state.recorder.active ? 'Recording' : 'Stopped';
+  const source = state.recorder.source ? titleCase(state.recorder.source) : '-';
 
   async function command(path: string) {
     const response = await fetch(path, { method: 'POST' });
@@ -20,37 +22,68 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
       <header className="pageHeader">
         <div>
           <h1>Main</h1>
-          <p>{state.recorder.active ? `Recording ${state.recorder.source}` : 'Recorder idle'}</p>
+          <p>{state.recorder.active ? `${source} recording` : 'Recorder idle'}</p>
         </div>
-        <div className="actions">
-          <button disabled={!state.enabled || state.recorder.active} onClick={() => void command('/api/manual/start')}>
-            <Play size={18} /> Start
+        <div className="controlActions">
+          <button
+            className="controlButton start"
+            disabled={!state.enabled || state.recorder.active}
+            onClick={() => void command('/api/manual/start')}
+          >
+            <Play size={24} /> Start
           </button>
-          <button disabled={!state.recorder.active} onClick={() => void command('/api/manual/stop')}>
-            <CircleStop size={18} /> Stop
+          <button
+            className="controlButton stop"
+            disabled={!state.recorder.active}
+            onClick={() => void command('/api/manual/stop')}
+          >
+            <CircleStop size={24} /> Stop
           </button>
         </div>
       </header>
       {disabledMessage && <div className="notice warn">{disabledMessage}</div>}
-      <section className="grid">
-        <Metric label="State" value={state.recorder.active ? 'Recording' : 'Stopped'} />
-        <Metric label="Current file" value={state.recorder.currentFilename ?? '-'} />
-        <Metric label="Current size" value={formatBytes(state.recorder.currentSize)} />
-        <Metric label="Duration" value={formatDuration(state.recorder.durationSeconds)} />
-        <Metric label="Capture start" value={formatDate(state.recorder.startedAt)} />
-        <Metric label="Expected stop" value={formatDate(state.expectedStop)} />
-        <Metric label="Next start" value={formatDate(state.schedule.nextStart)} />
-        <Metric label="Next end" value={formatDate(state.schedule.nextEnd)} />
-        <Metric label="Manual override" value={state.manualOverride} />
-        <Metric label="Service uptime" value={formatDuration(state.serviceUptimeSeconds)} />
-        <Metric label="Files created" value={String(state.stats.filesCreated)} />
-        <Metric label="Bytes created" value={formatBytes(state.stats.bytesCreated)} />
-        <Metric label="Recording time" value={formatDuration(state.stats.recordingSeconds)} />
-        <Metric label="Recording days" value={String(state.stats.recordingDays.length)} />
-        <Metric label="Failures" value={String(state.stats.failures)} />
-        <Metric label="Last connection" value={formatDate(state.stats.lastSuccessfulConnection)} />
-        <Metric label="Last error" value={state.lastError ?? '-'} />
-        <Metric label="Available space" value={state.disk ? formatBytes(state.disk.availableBytes) : '-'} />
+      <section className="statusStrip" aria-label="Recorder status">
+        <div>
+          <span>Status</span>
+          <strong>{recorderState}</strong>
+        </div>
+        <div>
+          <span>Current file</span>
+          <strong>{state.recorder.currentFilename ?? '-'}</strong>
+        </div>
+        <div>
+          <span>Current size</span>
+          <strong>{formatBytes(state.recorder.currentSize)}</strong>
+        </div>
+      </section>
+      <section className="dashboardGroups">
+        <InfoGroup title="Live Recording">
+          <InfoRow label="Source" value={source} />
+          <InfoRow label="Capture start" value={formatDate(state.recorder.startedAt)} />
+          <InfoRow label="Duration" value={formatDuration(state.recorder.durationSeconds)} />
+          <InfoRow label="Files in session" value={String(state.recorder.filesInSession)} />
+          <InfoRow label="Bytes in session" value={formatBytes(state.recorder.bytesInSession)} />
+        </InfoGroup>
+        <InfoGroup title="Schedule">
+          <InfoRow label="Schedule state" value={state.schedule.active ? 'Active window' : 'Waiting'} />
+          <InfoRow label="Expected stop" value={formatDate(state.expectedStop)} />
+          <InfoRow label="Next start" value={formatDate(state.schedule.nextStart)} />
+          <InfoRow label="Next end" value={formatDate(state.schedule.nextEnd)} />
+        </InfoGroup>
+        <InfoGroup title="Recording Totals">
+          <InfoRow label="Service uptime" value={formatDuration(state.serviceUptimeSeconds)} />
+          <InfoRow label="Recording time" value={formatDuration(state.stats.recordingSeconds)} />
+          <InfoRow label="Files created" value={String(state.stats.filesCreated)} />
+          <InfoRow label="Bytes created" value={formatBytes(state.stats.bytesCreated)} />
+          <InfoRow label="Recording days" value={String(state.stats.recordingDays.length)} />
+        </InfoGroup>
+        <InfoGroup title="Health And Storage">
+          <InfoRow label="Failures" value={String(state.stats.failures)} />
+          <InfoRow label="Last connection" value={formatDate(state.stats.lastSuccessfulConnection)} />
+          <InfoRow label="Last error" value={state.lastError ?? state.stats.lastError ?? '-'} />
+          <InfoRow label="Disk total" value={state.disk ? formatBytes(state.disk.totalBytes) : '-'} />
+          <InfoRow label="Available space" value={state.disk ? formatBytes(state.disk.availableBytes) : '-'} />
+        </InfoGroup>
       </section>
       <section className="wide">
         <h2>Recent Sessions</h2>
@@ -89,4 +122,26 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
       )}
     </>
   );
+}
+
+function InfoGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="infoGroup">
+      <h2>{title}</h2>
+      <dl>{children}</dl>
+    </section>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="infoRow">
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function titleCase(value: string): string {
+  return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
 }
