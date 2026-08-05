@@ -27,6 +27,7 @@ describe("App", () => {
       ok: true,
       json: async () => ({
         enabled: true,
+        stream: { url: "https://radio.example.test/live" },
         recorder: {
           active: false,
           currentSize: 0,

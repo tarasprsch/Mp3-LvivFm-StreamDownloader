@@ -2,6 +2,7 @@ export type Page = 'main' | 'logs' | 'settings';
 
 export type StateResponse = {
   enabled: boolean;
+  stream: { url: string };
   recorder: {
     active: boolean;
     source?: 'manual' | 'scheduled';

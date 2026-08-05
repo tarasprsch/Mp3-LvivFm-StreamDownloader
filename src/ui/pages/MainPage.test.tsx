@@ -17,6 +17,52 @@ describe('MainPage partial files', () => {
     expect(screen.getByRole('button', { name: /stop/i })).toBeDisabled();
   });
 
+  it('places the configured online player between status and dashboard sections', () => {
+    const pageState = state();
+    pageState.stream.url = 'https://radio.example.test/live';
+
+    const { container } = render(
+      <MainPage state={pageState} onRefresh={async () => undefined} />
+    );
+
+    const status = container.querySelector('.main-page__status-strip');
+    const player = container.querySelector('.main-page__stream-player');
+    const dashboard = container.querySelector('.main-page__dashboard-groups');
+    const audio = screen.getByLabelText('Lviv FM online stream');
+    expect(status?.nextElementSibling).toBe(player);
+    expect(player?.nextElementSibling).toBe(dashboard);
+    expect(audio).toHaveAttribute('src', 'https://radio.example.test/live');
+    expect(audio).toHaveAttribute('controls');
+    expect(audio).toHaveAttribute('preload', 'none');
+    expect(audio).not.toHaveAttribute('autoplay');
+  });
+
+  it.each([
+    { enabled: false, active: false },
+    { enabled: true, active: true }
+  ])('keeps the online player visible for recorder state $enabled/$active', ({ enabled, active }) => {
+    const pageState = state();
+    pageState.enabled = enabled;
+    pageState.recorder.active = active;
+
+    render(<MainPage state={pageState} onRefresh={async () => undefined} />);
+
+    expect(screen.getByRole('heading', { name: 'Online Stream' })).toBeInTheDocument();
+  });
+
+  it('keeps recorder controls usable when the online stream fails', () => {
+    const pageState = state();
+    pageState.recorder.active = false;
+    render(<MainPage state={pageState} onRefresh={async () => undefined} />);
+
+    fireEvent.error(screen.getByLabelText('Lviv FM online stream'));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Unable to play the configured stream in this browser.'
+    );
+    expect(screen.getByRole('button', { name: /start/i })).toBeEnabled();
+  });
+
   it('shows partial files in rows and protects the current recording partial', () => {
     render(<MainPage state={state()} onRefresh={async () => undefined} />);
 
@@ -229,6 +275,7 @@ function stateWithSessions(): StateResponse {
 function state(): StateResponse {
   return {
     enabled: true,
+    stream: { url: 'https://radio.example.test/default' },
     recorder: {
       active: true,
       source: 'manual',

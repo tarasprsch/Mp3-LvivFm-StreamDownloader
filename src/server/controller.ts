@@ -236,6 +236,9 @@ export class CaptureController extends EventEmitter {
 
     return {
       enabled: config.enabled,
+      stream: {
+        url: config.stream.url
+      },
       recorder,
       schedule: {
         active: schedule.active,

@@ -1,5 +1,6 @@
 import { CircleStop, Play, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { StreamPlayer } from "../components/StreamPlayer";
 import { formatBytes, formatDate, formatDuration } from "../format";
 import type { StateResponse } from "../types";
 import "./MainPage.css";
@@ -176,6 +177,7 @@ export function MainPage({
           <strong>{formatBytes(state.recorder.currentSize)}</strong>
         </div>
       </section>
+      <StreamPlayer url={state.stream.url} />
       <section className="main-page__dashboard-groups">
         <InfoGroup title="Live Recording">
           <InfoRow label="Source" value={source} />

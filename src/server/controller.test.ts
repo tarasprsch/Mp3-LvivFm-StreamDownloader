@@ -31,6 +31,17 @@ describe('capture controller transitions', () => {
     });
   });
 
+  it('exposes the configured stream URL in state exactly as stored', async () => {
+    const streamUrl = 'https://radio.example.test/live-stream';
+    const { controller } = await fixture({
+      stream: { ...defaultConfig.stream, url: streamUrl }
+    });
+
+    await expect(controller.status()).resolves.toMatchObject({
+      stream: { url: streamUrl }
+    });
+  });
+
   it('resets manual override after a manual stream failure', async () => {
     const fakeRecorder = new FakeRecorder();
     const { controller } = await fixture({}, fakeRecorder);
