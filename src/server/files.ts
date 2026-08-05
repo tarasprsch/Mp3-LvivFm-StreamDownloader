@@ -21,6 +21,17 @@ export type CompletedRecording = {
   size: number;
 };
 
+export type SettlePartOptions = {
+  partPath: string;
+  finalPath: string;
+  currentBytes: number;
+  completedFiles: number;
+};
+
+export type SettledPart =
+  | { action: 'finalized'; path: string; bytes: number }
+  | { action: 'discarded' };
+
 const completedRecordingPattern = /^(\d{4}-\d{2}-\d{2})__(\d{2,})(?:-\d+)?\.mp3$/;
 
 export async function ensureOutputDirectory(directory: string): Promise<void> {
@@ -158,6 +169,24 @@ export async function finalizePartFile(partPath: string, finalPath: string): Pro
   }
   await rename(partPath, target);
   return target;
+}
+
+export async function settlePartFile(options: SettlePartOptions): Promise<SettledPart> {
+  if (options.completedFiles > 0 || options.currentBytes === 0) {
+    try {
+      await unlink(options.partPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    return { action: 'discarded' };
+  }
+
+  const completedPath = await finalizePartFile(options.partPath, options.finalPath);
+  return {
+    action: 'finalized',
+    path: completedPath,
+    bytes: (await stat(completedPath)).size
+  };
 }
 
 export function sessionDateFrom(date: Date, timeZone: string): string {

@@ -11,6 +11,7 @@ import {
   inventoryRecordings,
   listCompletedRecordings,
   nextRecordingNumber,
+  settlePartFile,
   sessionDateFrom
 } from './files.js';
 
@@ -166,6 +167,100 @@ describe('recording files', () => {
     const names = await readdir(directory);
     expect(completed).toContain('2026-06-17__01-1.mp3');
     expect(names.sort()).toEqual(['2026-06-17__01-1.mp3', '2026-06-17__01.mp3']);
+  });
+
+  describe('settling the current recording part', () => {
+    it('finalizes a nonempty sole part and reports its actual size', async () => {
+      const directory = await tempDirectory();
+      const partPath = path.join(directory, 'active.mp3.part');
+      const finalPath = path.join(directory, '2026-06-17__01.mp3');
+      await writeFile(partPath, Buffer.alloc(10));
+
+      await expect(settlePartFile({
+        partPath,
+        finalPath,
+        currentBytes: 10,
+        completedFiles: 0
+      })).resolves.toEqual({ action: 'finalized', path: finalPath, bytes: 10 });
+      await expect(readdir(directory)).resolves.toEqual(['2026-06-17__01.mp3']);
+    });
+
+    it('discards a nonempty tail after a completed split', async () => {
+      const directory = await tempDirectory();
+      const partPath = path.join(directory, 'active.mp3.part');
+      const finalPath = path.join(directory, '2026-06-17__02.mp3');
+      await writeFile(partPath, Buffer.alloc(4));
+
+      await expect(settlePartFile({
+        partPath,
+        finalPath,
+        currentBytes: 4,
+        completedFiles: 1
+      })).resolves.toEqual({ action: 'discarded' });
+      await expect(readdir(directory)).resolves.toEqual([]);
+    });
+
+    it('discards a zero-byte sole part', async () => {
+      const directory = await tempDirectory();
+      const partPath = path.join(directory, 'active.mp3.part');
+      await writeFile(partPath, Buffer.alloc(0));
+
+      await expect(settlePartFile({
+        partPath,
+        finalPath: path.join(directory, '2026-06-17__01.mp3'),
+        currentBytes: 0,
+        completedFiles: 0
+      })).resolves.toEqual({ action: 'discarded' });
+      await expect(readdir(directory)).resolves.toEqual([]);
+    });
+
+    it('treats a missing discarded part as already discarded', async () => {
+      const directory = await tempDirectory();
+
+      await expect(settlePartFile({
+        partPath: path.join(directory, 'missing.mp3.part'),
+        finalPath: path.join(directory, '2026-06-17__02.mp3'),
+        currentBytes: 4,
+        completedFiles: 1
+      })).resolves.toEqual({ action: 'discarded' });
+    });
+
+    it('uses collision-safe finalization for a nonempty sole part', async () => {
+      const directory = await tempDirectory();
+      const partPath = path.join(directory, 'active.mp3.part');
+      const finalPath = path.join(directory, '2026-06-17__01.mp3');
+      await writeFile(partPath, 'new');
+      await writeFile(finalPath, 'old');
+
+      await expect(settlePartFile({
+        partPath,
+        finalPath,
+        currentBytes: 3,
+        completedFiles: 0
+      })).resolves.toEqual({
+        action: 'finalized',
+        path: path.join(directory, '2026-06-17__01-1.mp3'),
+        bytes: 3
+      });
+      expect((await readdir(directory)).sort()).toEqual([
+        '2026-06-17__01-1.mp3',
+        '2026-06-17__01.mp3'
+      ]);
+    });
+
+    it('propagates discard failures without renaming the part', async () => {
+      const directory = await tempDirectory();
+      const partPath = path.join(directory, 'active.mp3.part');
+      await mkdir(partPath);
+
+      await expect(settlePartFile({
+        partPath,
+        finalPath: path.join(directory, '2026-06-17__02.mp3'),
+        currentBytes: 4,
+        completedFiles: 1
+      })).rejects.toBeInstanceOf(Error);
+      await expect(readdir(directory)).resolves.toEqual(['active.mp3.part']);
+    });
   });
 
   it('deletes an existing partial recording by filename', async () => {

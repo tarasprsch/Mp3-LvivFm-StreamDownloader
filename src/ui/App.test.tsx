@@ -58,6 +58,6 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: "Main" })).toBeInTheDocument(),
     );
-    expect(screen.getByText("record stopped")).toBeInTheDocument();
+    expect(screen.getByText("Record stopped")).toBeInTheDocument();
   });
 });

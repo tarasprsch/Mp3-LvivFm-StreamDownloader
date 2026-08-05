@@ -1,6 +1,5 @@
 import { EventEmitter } from 'node:events';
 import { createWriteStream, type WriteStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
 import https from 'node:https';
 import path from 'node:path';
 import {
@@ -8,6 +7,7 @@ import {
   finalizePartFile,
   finalName,
   nextRecordingNumber,
+  settlePartFile,
   sessionDateFrom
 } from './files.js';
 
@@ -194,21 +194,26 @@ export class Recorder extends EventEmitter {
     const session = this.session;
     if (!session) return;
     const stream = this.writeStream;
+    const partPath = this.currentPartPath;
+    const finalPath = this.currentFinalPath;
+    const currentBytes = this.currentSize;
+    const completedFiles = this.filesInSession;
     this.writeStream = undefined;
     this.session = undefined;
     this.controller = undefined;
 
     try {
       if (stream) await closeStream(stream);
-      if (this.currentPartPath && this.currentSize > 0) {
-        const completedPath = await finalizePartFile(this.currentPartPath, this.currentFinalPath);
-        const bytes = (await stat(completedPath)).size;
-        this.filesInSession += 1;
-        this.bytesInSession += bytes;
-        this.emit('file', { path: completedPath, bytes });
+      if (partPath) {
+        const settled = await settlePartFile({ partPath, finalPath, currentBytes, completedFiles });
+        if (settled.action === 'finalized') {
+          this.filesInSession += 1;
+          this.bytesInSession += settled.bytes;
+          this.emit('file', { path: settled.path, bytes: settled.bytes });
+        }
       }
-    } catch (finalizeError) {
-      error = finalizeError instanceof Error ? finalizeError : new Error(String(finalizeError));
+    } catch (settlementError) {
+      error = settlementError instanceof Error ? settlementError : new Error(String(settlementError));
     }
 
     const files = this.filesInSession;
