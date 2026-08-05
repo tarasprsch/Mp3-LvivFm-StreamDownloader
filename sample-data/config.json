@@ -1,7 +1,8 @@
 {
   "enabled": true,
   "stream": {
-    "url": "https://onair.lviv.fm:8443/lviv.fm"
+    "url": "https://onair.lviv.fm:8443/lviv.fm",
+    "bitrateKbps": 128
   },
   "schedule": {
     "start": "23:00",

@@ -6,7 +6,8 @@ import { z } from 'zod';
 export const configSchema = z.object({
   enabled: z.boolean(),
   stream: z.object({
-    url: z.string().url()
+    url: z.string().url(),
+    bitrateKbps: z.number().positive().finite().default(128)
   }),
   schedule: z.object({
     start: z.string().regex(/^\d{2}:\d{2}$/),
@@ -52,7 +53,8 @@ export type PublicSettingsPatch = z.infer<typeof publicSettingsSchema>;
 export const defaultConfig: AppConfig = {
   enabled: true,
   stream: {
-    url: 'https://onair.lviv.fm:8443/lviv.fm'
+    url: 'https://onair.lviv.fm:8443/lviv.fm',
+    bitrateKbps: 128
   },
   schedule: {
     start: '23:00',
@@ -93,6 +95,9 @@ export class ConfigStore extends EventEmitter {
     try {
       const raw = await readFile(this.configPath, 'utf8');
       const parsed = configSchema.parse(JSON.parse(raw));
+      if (!Object.hasOwn(JSON.parse(raw).stream ?? {}, 'bitrateKbps')) {
+        await this.persist(parsed);
+      }
       this.current = parsed;
       this.lastRaw = JSON.stringify(parsed);
       return this.value;
@@ -162,15 +167,19 @@ export class ConfigStore extends EventEmitter {
   async save(config: AppConfig): Promise<AppConfig> {
     await mkdir(this.dataDirectory, { recursive: true });
     const parsed = configSchema.parse(config);
-    const body = `${JSON.stringify(parsed, null, 2)}\n`;
-    const tempPath = `${this.configPath}.${process.pid}.${Date.now()}.tmp`;
-    await writeFile(tempPath, body, { encoding: 'utf8', mode: 0o600 });
-    await rename(tempPath, this.configPath);
+    await this.persist(parsed);
     const previous = this.current;
     this.current = parsed;
     this.lastRaw = JSON.stringify(parsed);
     this.emit('change', this.value, previous);
     return this.value;
+  }
+
+  private async persist(config: AppConfig): Promise<void> {
+    const body = `${JSON.stringify(config, null, 2)}\n`;
+    const tempPath = `${this.configPath}.${process.pid}.${Date.now()}.tmp`;
+    await writeFile(tempPath, body, { encoding: 'utf8', mode: 0o600 });
+    await rename(tempPath, this.configPath);
   }
 }
 

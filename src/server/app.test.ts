@@ -58,6 +58,32 @@ describe('app partial file API', () => {
     expect(response.status).toBe(409);
   });
 
+  it('returns rebuilt statistics through the authenticated API', async () => {
+    const stats = { recordingSeconds: 10, filesCreated: 2, bytesCreated: 160_000, recordingDays: ['2026-08-04'] };
+    const { baseUrl, cookie } = await fixture({
+      recalculateStatistics: async () => ({ ok: true, stats } as Awaited<ReturnType<CaptureController['recalculateStatistics']>>)
+    });
+
+    const response = await fetch(`${baseUrl}/api/stats/recalculate`, { method: 'POST', headers: { Cookie: cookie } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, stats });
+  });
+
+  it.each([
+    [409, 'Stop recording before recalculating statistics.'],
+    [500, 'scan failed']
+  ])('returns controller recalculation error status %i', async (status, error) => {
+    const { baseUrl, cookie } = await fixture({
+      recalculateStatistics: async () => ({ ok: false, error, status } as Awaited<ReturnType<CaptureController['recalculateStatistics']>>)
+    });
+
+    const response = await fetch(`${baseUrl}/api/stats/recalculate`, { method: 'POST', headers: { Cookie: cookie } });
+
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toEqual({ ok: false, error });
+  });
+
   async function fixture(controllerPatch: Partial<CaptureController>) {
     const directory = path.join(os.tmpdir(), `lfm-app-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     await mkdir(directory, { recursive: true });

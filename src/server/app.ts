@@ -86,6 +86,15 @@ export function createApp(options: {
     response.json(await options.controller.manualStop());
   });
 
+  app.post('/api/stats/recalculate', async (_request, response) => {
+    const result = await options.controller.recalculateStatistics();
+    if (result.ok) {
+      response.json(result);
+      return;
+    }
+    response.status(result.status).json({ ok: false, error: result.error });
+  });
+
   app.delete('/api/partial-files/:name', async (request, response) => {
     const result = await options.controller.deletePartialFile(request.params.name);
     response.status(result.ok ? 200 : result.status).json(result);

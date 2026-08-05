@@ -1,6 +1,14 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
+import type { RecordingInventory } from './files.js';
+
+const recordingInventorySchema = z.object({
+  recordingSeconds: z.number().int().nonnegative(),
+  filesCreated: z.number().int().nonnegative(),
+  bytesCreated: z.number().int().nonnegative(),
+  recordingDays: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+});
 
 const statsSchema = z.object({
   appStartedAt: z.string(),
@@ -74,7 +82,14 @@ export class StatsStore {
     await this.save();
   }
 
-  async finishSession(id: string, stoppedAt: Date, status: 'stopped' | 'failed', files: number, bytes: number): Promise<void> {
+  async finishSession(
+    id: string,
+    stoppedAt: Date,
+    status: 'stopped' | 'failed',
+    files: number,
+    bytes: number,
+    sessionDate: string
+  ): Promise<void> {
     const session = this.current.sessions.find((item) => item.id === id);
     if (session) {
       const seconds = Math.max(0, Math.round((stoppedAt.getTime() - Date.parse(session.startedAt)) / 1000));
@@ -83,7 +98,7 @@ export class StatsStore {
       session.files = files;
       session.bytes = bytes;
       this.current.recordingSeconds += seconds;
-      this.current.recordingDays = [...new Set([...this.current.recordingDays, session.startedAt.slice(0, 10)])].sort();
+      this.current.recordingDays = [...new Set([...this.current.recordingDays, sessionDate])].sort();
     }
     if (status === 'failed') this.current.failures += 1;
     await this.save();
@@ -101,10 +116,25 @@ export class StatsStore {
     await this.save();
   }
 
+  async replaceRecordingInventory(inventory: RecordingInventory): Promise<AppStats> {
+    const validated = recordingInventorySchema.parse(inventory);
+    const next = statsSchema.parse({
+      ...this.current,
+      ...validated
+    });
+    await this.persist(next);
+    this.current = next;
+    return this.value;
+  }
+
   private async save(): Promise<void> {
+    await this.persist(this.current);
+  }
+
+  private async persist(stats: AppStats): Promise<void> {
     await mkdir(this.dataDirectory, { recursive: true });
     const temp = `${this.filePath}.${process.pid}.${Date.now()}.tmp`;
-    await writeFile(temp, `${JSON.stringify(this.current, null, 2)}\n`, 'utf8');
+    await writeFile(temp, `${JSON.stringify(stats, null, 2)}\n`, 'utf8');
     await rename(temp, this.filePath);
   }
 

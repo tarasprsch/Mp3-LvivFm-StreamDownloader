@@ -1,4 +1,4 @@
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -7,11 +7,52 @@ import {
   finalName,
   finalizePartFile,
   listPartialRecordings,
+  inventoryRecordings,
   nextRecordingNumber,
   sessionDateFrom
 } from './files.js';
 
 describe('recording files', () => {
+  it('inventories only recorder-owned completed files and rounds duration once', async () => {
+    const directory = await tempDirectory();
+    await writeFile(path.join(directory, '2026-06-18__01.mp3'), Buffer.alloc(1_000));
+    await writeFile(path.join(directory, '2026-06-18__02-1.mp3'), Buffer.alloc(2_000));
+    await writeFile(path.join(directory, '2026-06-17__100.mp3'), Buffer.alloc(500));
+    await writeFile(path.join(directory, '2026-06-18__03.mp3.part'), Buffer.alloc(9_000));
+    await writeFile(path.join(directory, 'song.mp3'), Buffer.alloc(9_000));
+    await mkdir(path.join(directory, '2026-06-18__04.mp3'));
+    await mkdir(path.join(directory, 'nested'));
+    await writeFile(path.join(directory, 'nested', '2026-06-18__05.mp3'), Buffer.alloc(9_000));
+    try {
+      await symlink(path.join(directory, '2026-06-18__01.mp3'), path.join(directory, '2026-06-18__06.mp3'));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EPERM') throw error;
+    }
+
+    await expect(inventoryRecordings(directory, 128)).resolves.toEqual({
+      recordingSeconds: Math.round(3_500 * 8 / 128_000),
+      filesCreated: 3,
+      bytesCreated: 3_500,
+      recordingDays: ['2026-06-17', '2026-06-18']
+    });
+    await expect(inventoryRecordings(directory, 64)).resolves.toMatchObject({
+      recordingSeconds: Math.round(3_500 * 8 / 64_000)
+    });
+  });
+
+  it('creates a missing output directory and returns an empty inventory', async () => {
+    const parent = await tempDirectory();
+    const directory = path.join(parent, 'missing');
+
+    await expect(inventoryRecordings(directory, 128)).resolves.toEqual({
+      recordingSeconds: 0,
+      filesCreated: 0,
+      bytesCreated: 0,
+      recordingDays: []
+    });
+    await expect(readdir(directory)).resolves.toEqual([]);
+  });
+
   it('uses the configured timezone for the recording filename date', () => {
     const startedAt = new Date('2026-08-03T21:10:00.000Z');
 

@@ -1,10 +1,12 @@
-import type { ReactNode } from 'react';
-import { CircleStop, Play, Trash2 } from 'lucide-react';
+import { useRef, useState, type ReactNode } from 'react';
+import { CircleStop, Play, RefreshCw, Trash2 } from 'lucide-react';
 import { formatBytes, formatDate, formatDuration } from '../format';
 import type { StateResponse } from '../types';
 import './MainPage.css';
 
 export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh: () => Promise<void> }) {
+  const [recalculationPending, setRecalculationPending] = useState(false);
+  const recalculationPendingRef = useRef(false);
   const disabledMessage = !state.enabled ? 'Capture is disabled in settings.' : '';
   const recorderState = state.recorder.active ? 'Recording' : 'Stopped';
   const source = state.recorder.source ? titleCase(state.recorder.source) : '-';
@@ -26,6 +28,26 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
       return;
     }
     await onRefresh();
+  }
+
+  async function recalculateStatistics() {
+    if (recalculationPendingRef.current) return;
+    recalculationPendingRef.current = true;
+    setRecalculationPending(true);
+    try {
+      const response = await fetch('/api/stats/recalculate', { method: 'POST' });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ error: 'Recalculation failed.' }));
+        alert(body.error);
+        return;
+      }
+      await onRefresh();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Recalculation failed.');
+    } finally {
+      recalculationPendingRef.current = false;
+      setRecalculationPending(false);
+    }
   }
 
   return (
@@ -81,7 +103,20 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
           <InfoRow label="Next start" value={formatDate(state.schedule.nextStart)} />
           <InfoRow label="Next end" value={formatDate(state.schedule.nextEnd)} />
         </InfoGroup>
-        <InfoGroup title="Recording Totals">
+        <InfoGroup
+          title="Recording Totals"
+          action={
+            <button
+              type="button"
+              className="main-page__group-action"
+              aria-label="Recalculate statistics"
+              disabled={state.recorder.active || recalculationPending}
+              onClick={() => void recalculateStatistics()}
+            >
+              <RefreshCw size={16} /> Recalculate
+            </button>
+          }
+        >
           <InfoRow label="Service uptime" value={formatDuration(state.serviceUptimeSeconds)} />
           <InfoRow label="Recording time" value={formatDuration(state.stats.recordingSeconds)} />
           <InfoRow label="Files created" value={String(state.stats.filesCreated)} />
@@ -185,10 +220,13 @@ export function MainPage({ state, onRefresh }: { state: StateResponse; onRefresh
   );
 }
 
-function InfoGroup({ title, children }: { title: string; children: ReactNode }) {
+function InfoGroup({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section className="main-page__info-group">
-      <h2>{title}</h2>
+      <div className="main-page__info-group-header">
+        <h2>{title}</h2>
+        {action}
+      </div>
       <dl>{children}</dl>
     </section>
   );

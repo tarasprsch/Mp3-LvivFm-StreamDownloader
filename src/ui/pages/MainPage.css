@@ -92,6 +92,24 @@
   padding: 16px;
 }
 
+.main-page__info-group-header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.main-page__info-group-header h2 {
+  margin: 0;
+}
+
+.main-page__group-action {
+  font-size: 13px;
+  min-height: 32px;
+  padding: 0 10px;
+}
+
 .main-page__info-group dl {
   display: grid;
   gap: 0;

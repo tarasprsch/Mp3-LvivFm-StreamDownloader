@@ -1,7 +1,13 @@
 import { statfs } from 'node:fs/promises';
 import { EventEmitter } from 'node:events';
 import { type AppConfig, type ConfigStore } from './config.js';
-import { deletePartialRecording, listPartialRecordings, PartialRecordingDeleteError } from './files.js';
+import {
+  deletePartialRecording,
+  inventoryRecordings,
+  listPartialRecordings,
+  PartialRecordingDeleteError,
+  type RecordingInventory
+} from './files.js';
 import type { AppLogger } from './logger.js';
 import { Recorder, type RecorderSession, type RecorderSource, type RecorderStatus } from './recorder.js';
 import { getScheduleState, isScheduleChanged } from './schedule.js';
@@ -23,7 +29,8 @@ export class CaptureController extends EventEmitter {
     private readonly configStore: ConfigStore,
     private readonly logger: AppLogger,
     private readonly stats: StatsStore,
-    private readonly recorder: RecorderLike = new Recorder()
+    private readonly recorder: RecorderLike = new Recorder(),
+    private readonly inventory: (directory: string, bitrateKbps: number) => Promise<RecordingInventory> = inventoryRecordings
   ) {
     super();
     this.recorder.on('file', ({ bytes }) => {
@@ -33,7 +40,7 @@ export class CaptureController extends EventEmitter {
       void this.stats.markSuccessfulConnection(connectedAt);
     });
     this.recorder.on('stopped', ({ session, files, bytes, error }) => {
-      void this.handleRecorderStopped(session.id, session.source, files, bytes, error);
+      void this.handleRecorderStopped(session, files, bytes, error);
     });
     this.configStore.on('change', (next: AppConfig, previous: AppConfig) => {
       if (isScheduleChanged(previous, next)) {
@@ -117,6 +124,29 @@ export class CaptureController extends EventEmitter {
         };
       }
       return { ok: false, error: describeError(error), status: 500 };
+    }
+  }
+
+  async recalculateStatistics() {
+    if (this.recorder.active) {
+      return {
+        ok: false as const,
+        error: 'Stop recording before recalculating statistics.',
+        status: 409 as const
+      };
+    }
+
+    const config = this.configStore.value;
+    try {
+      const inventory = await this.inventory(config.recording.outputDirectory, config.stream.bitrateKbps);
+      const stats = await this.stats.replaceRecordingInventory(inventory);
+      await this.logger.log('statistics_recalculated', 'Recording statistics recalculated', {
+        ...inventory,
+        bitrateKbps: config.stream.bitrateKbps
+      });
+      return { ok: true as const, stats };
+    } catch (error) {
+      return { ok: false as const, error: describeError(error), status: 500 as const };
     }
   }
 
@@ -214,12 +244,12 @@ export class CaptureController extends EventEmitter {
   }
 
   private async handleRecorderStopped(
-    sessionId: string,
-    source: RecorderSource,
+    recorderSession: RecorderSession,
     files: number,
     bytes: number,
     error: Error | undefined
   ): Promise<void> {
+    const { id: sessionId, source, sessionDate } = recorderSession;
     const wasCurrent = this.currentSessionId === sessionId;
     this.currentSessionId = undefined;
     this.currentSource = undefined;
@@ -232,14 +262,14 @@ export class CaptureController extends EventEmitter {
       if (source === 'scheduled' && schedule.active) this.failedWindowId = schedule.windowId;
       if (source === 'manual') this.manualOverride = 'none';
       await this.logger.log('stream_error', 'Stream error stopped recording', { error: message });
-      await this.stats.finishSession(sessionId, stoppedAt, 'failed', files, bytes);
+      await this.stats.finishSession(sessionId, stoppedAt, 'failed', files, bytes, sessionDate);
       return;
     }
 
     if (wasCurrent && source === 'manual') {
       await this.logger.log('manual_recording_stopped', 'Manual recording stopped');
     }
-    await this.stats.finishSession(sessionId, stoppedAt, 'stopped', files, bytes);
+    await this.stats.finishSession(sessionId, stoppedAt, 'stopped', files, bytes, sessionDate);
   }
 }
 

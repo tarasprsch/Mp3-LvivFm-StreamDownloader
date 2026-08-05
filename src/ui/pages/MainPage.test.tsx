@@ -61,6 +61,52 @@ describe('MainPage partial files', () => {
     );
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
   });
+
+  it('places a Recalculate action in Recording Totals and disables it while recording', () => {
+    render(<MainPage state={state()} onRefresh={async () => undefined} />);
+
+    const totals = screen.getByRole('heading', { name: 'Recording Totals' }).closest('section');
+    expect(within(totals as HTMLElement).getByRole('button', { name: /recalculate statistics/i })).toBeDisabled();
+  });
+
+  it('prevents duplicate recalculations while pending and refreshes after success', async () => {
+    const pageState = state();
+    pageState.recorder.active = false;
+    const refresh = vi.fn(async () => undefined);
+    let resolveRequest!: (response: Response) => void;
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(
+      () => new Promise<Response>((resolve) => { resolveRequest = resolve; })
+    );
+    render(<MainPage state={pageState} onRefresh={refresh} />);
+    const button = screen.getByRole('button', { name: /recalculate statistics/i });
+
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(button).toBeDisabled();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith('/api/stats/recalculate', { method: 'POST' });
+    expect(refresh).not.toHaveBeenCalled();
+    resolveRequest({ ok: true, json: async () => ({ ok: true }) } as Response);
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+  });
+
+  it('shows a recalculation error and does not refresh', async () => {
+    const pageState = state();
+    pageState.recorder.active = false;
+    const refresh = vi.fn(async () => undefined);
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      json: async () => ({ ok: false, error: 'scan failed' })
+    } as Response);
+    render(<MainPage state={pageState} onRefresh={refresh} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /recalculate statistics/i }));
+
+    await waitFor(() => expect(alert).toHaveBeenCalledWith('scan failed'));
+    expect(refresh).not.toHaveBeenCalled();
+  });
 });
 
 function state(): StateResponse {

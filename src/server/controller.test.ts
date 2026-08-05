@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConfigStore, defaultConfig } from './config.js';
 import { CaptureController, type RecorderLike } from './controller.js';
 import { AppLogger } from './logger.js';
+import type { RecordingInventory } from './files.js';
 import type { RecorderSession, RecorderSource, RecorderStatus } from './recorder.js';
 import { StatsStore } from './stats.js';
 
@@ -97,6 +98,49 @@ describe('capture controller transitions', () => {
       partialFiles: []
     });
   });
+
+  it('recalculates statistics with the currently configured bitrate and logs the totals', async () => {
+    const inventory: RecordingInventory = {
+      recordingSeconds: 8,
+      filesCreated: 2,
+      bytesCreated: 64_000,
+      recordingDays: ['2026-08-04']
+    };
+    const scan = vi.fn(async () => inventory);
+    const { controller, outputDirectory, logger } = await fixture(
+      { stream: { ...defaultConfig.stream, bitrateKbps: 64 } },
+      new FakeRecorder(),
+      scan
+    );
+
+    await expect(controller.recalculateStatistics()).resolves.toEqual({ ok: true, stats: expect.objectContaining(inventory) });
+    expect(scan).toHaveBeenCalledWith(outputDirectory, 64);
+    const event = JSON.parse((await logger.recent('statistics_recalculated'))[0]!);
+    expect(event).toMatchObject({ event: 'statistics_recalculated', meta: { ...inventory, bitrateKbps: 64 } });
+  });
+
+  it('rejects recalculation without scanning while recording is active', async () => {
+    const recorder = new FakeRecorder();
+    recorder.active = true;
+    const scan = vi.fn();
+    const { controller } = await fixture({}, recorder, scan);
+
+    await expect(controller.recalculateStatistics()).resolves.toEqual({
+      ok: false,
+      error: 'Stop recording before recalculating statistics.',
+      status: 409
+    });
+    expect(scan).not.toHaveBeenCalled();
+  });
+
+  it('leaves statistics unchanged when the inventory scan fails', async () => {
+    const scan = vi.fn(async () => { throw new Error('scan failed'); });
+    const { controller, stats } = await fixture({}, new FakeRecorder(), scan);
+    const before = stats.value;
+
+    await expect(controller.recalculateStatistics()).resolves.toEqual({ ok: false, error: 'scan failed', status: 500 });
+    expect(stats.value).toEqual(before);
+  });
 });
 
 class FakeRecorder extends EventEmitter implements RecorderLike {
@@ -151,7 +195,11 @@ class FakeRecorder extends EventEmitter implements RecorderLike {
   }
 }
 
-async function fixture(overrides: Partial<typeof defaultConfig> = {}, recorder = new FakeRecorder()) {
+async function fixture(
+  overrides: Partial<typeof defaultConfig> = {},
+  recorder = new FakeRecorder(),
+  inventory = async (): Promise<RecordingInventory> => ({ recordingSeconds: 0, filesCreated: 0, bytesCreated: 0, recordingDays: [] })
+) {
   const directory = path.join(os.tmpdir(), `lfm-controller-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const outputDirectory = path.join(directory, 'mp3');
   await mkdir(outputDirectory, { recursive: true });
@@ -172,6 +220,6 @@ async function fixture(overrides: Partial<typeof defaultConfig> = {}, recorder =
   const logger = new AppLogger(directory);
   const stats = new StatsStore(directory);
   await stats.load();
-  const controller = new CaptureController(configStore, logger, stats, recorder);
-  return { controller, recorder, outputDirectory };
+  const controller = new CaptureController(configStore, logger, stats, recorder, inventory);
+  return { controller, recorder, outputDirectory, logger, stats };
 }

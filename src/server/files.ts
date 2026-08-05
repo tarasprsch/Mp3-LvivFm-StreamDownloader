@@ -7,6 +7,13 @@ export type PartialRecording = {
   size: number;
 };
 
+export type RecordingInventory = {
+  recordingSeconds: number;
+  filesCreated: number;
+  bytesCreated: number;
+  recordingDays: string[];
+};
+
 export async function ensureOutputDirectory(directory: string): Promise<void> {
   await mkdir(directory, { recursive: true });
 }
@@ -22,6 +29,30 @@ export async function listPartialRecordings(directory: string): Promise<PartialR
       size: (await stat(path.join(directory, name))).size
     }))
   );
+}
+
+export async function inventoryRecordings(directory: string, bitrateKbps: number): Promise<RecordingInventory> {
+  await ensureOutputDirectory(directory);
+  const entries = await readdir(directory, { withFileTypes: true });
+  const completedPattern = /^(\d{4}-\d{2}-\d{2})__(\d{2,})(?:-\d+)?\.mp3$/;
+  let bytesCreated = 0;
+  let filesCreated = 0;
+  const recordingDays = new Set<string>();
+
+  for (const entry of entries) {
+    const match = completedPattern.exec(entry.name);
+    if (!entry.isFile() || !match?.[1]) continue;
+    bytesCreated += (await stat(path.join(directory, entry.name))).size;
+    filesCreated += 1;
+    recordingDays.add(match[1]);
+  }
+
+  return {
+    recordingSeconds: Math.round(bytesCreated * 8 / (bitrateKbps * 1_000)),
+    filesCreated,
+    bytesCreated,
+    recordingDays: [...recordingDays].sort()
+  };
 }
 
 export async function deletePartialRecording(directory: string, name: string): Promise<void> {
