@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, appendFile } from 'node:fs/promises';
+import { mkdir, readFile, appendFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export type LogEvent =
@@ -29,29 +29,17 @@ export class AppLogger {
     await appendFile(this.currentPath(), `${line}\n`, 'utf8');
   }
 
-  async recent(search = '', limit = 250): Promise<string[]> {
+  async recent(search = ''): Promise<string[]> {
     await mkdir(this.dataDirectory, { recursive: true });
-    const files = (await readdir(this.dataDirectory))
-      .filter((name) => /^app-\d{4}-\d{2}-\d{2}\.log$/.test(name))
-      .sort()
-      .reverse()
-      .slice(0, 7);
     const needle = search.trim().toLowerCase();
-    const lines: string[] = [];
-    for (const file of files) {
-      const body = await readFile(path.join(this.dataDirectory, file), 'utf8').catch(() => '');
-      for (const line of body.split('\n').reverse()) {
-        if (!line) continue;
-        if (needle && !line.toLowerCase().includes(needle)) continue;
-        lines.push(line);
-        if (lines.length >= limit) return lines;
-      }
-    }
-    return lines;
+    const body = await readFile(this.currentPath(), 'utf8').catch(() => '');
+    return body
+      .split('\n')
+      .reverse()
+      .filter((line) => Boolean(line) && (!needle || line.toLowerCase().includes(needle)));
   }
 
   private currentPath(): string {
-    const date = new Date().toISOString().slice(0, 10);
-    return path.join(this.dataDirectory, `app-${date}.log`);
+    return path.join(this.dataDirectory, 'app.log');
   }
 }
