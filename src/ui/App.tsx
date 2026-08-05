@@ -3,6 +3,7 @@ import { Login } from './components/Login';
 import { Sidebar } from './components/Sidebar';
 import { LogsPage } from './pages/LogsPage';
 import { MainPage } from './pages/MainPage';
+import { RecordingFilesPage } from './pages/RecordingFilesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import type { Page, StateResponse } from './types';
 import './App.css';
@@ -10,6 +11,7 @@ import './App.css';
 export function App() {
   const [authenticated, setAuthenticated] = useState<boolean | undefined>(undefined);
   const [page, setPage] = useState<Page>('main');
+  const [selectedRecordingDate, setSelectedRecordingDate] = useState<string>();
   const [state, setState] = useState<StateResponse | undefined>();
   const [error, setError] = useState('');
 
@@ -35,15 +37,25 @@ export function App() {
     setAuthenticated(false);
   }
 
+  function navigate(page: Page) {
+    setSelectedRecordingDate(undefined);
+    setPage(page);
+  }
+
   if (authenticated === undefined) return <div className="app-boot">Lviv FM Stream Recorder</div>;
   if (!authenticated) return <Login onLogin={() => void refresh()} />;
 
   return (
     <div className="app">
-      <Sidebar page={page} onPageChange={setPage} onLogout={() => void logout()} />
+      <Sidebar page={page} onPageChange={navigate} onLogout={() => void logout()} />
       <main className="app__main">
         {error && <div className="app__notice app__notice--danger">{error}</div>}
-        {page === 'main' && state && <MainPage state={state} onRefresh={refresh} />}
+        {page === 'main' && selectedRecordingDate && (
+          <RecordingFilesPage date={selectedRecordingDate} onBack={() => setSelectedRecordingDate(undefined)} />
+        )}
+        {page === 'main' && state && !selectedRecordingDate && (
+          <MainPage state={state} onRefresh={refresh} onOpenRecordingDate={setSelectedRecordingDate} />
+        )}
         {page === 'logs' && <LogsPage />}
         {page === 'settings' && <SettingsPage />}
       </main>

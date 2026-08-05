@@ -6,6 +6,7 @@ import {
   deleteRecordingsForDates,
   inventoryRecordings,
   listPartialRecordings,
+  listRecordingsForDate,
   PartialRecordingDeleteError,
   RecordingDeleteError,
   sessionDateFrom,
@@ -227,12 +228,24 @@ export class CaptureController extends EventEmitter {
     }
   }
 
+  async recordingsForDate(date: string) {
+    try {
+      return {
+        ok: true as const,
+        ...await listRecordingsForDate(this.configStore.value.recording.outputDirectory, date)
+      };
+    } catch {
+      return { ok: false as const, error: 'Unable to list recordings.', status: 500 as const };
+    }
+  }
+
   async status() {
     const config = this.configStore.value;
     const schedule = getScheduleState(config.schedule);
     const recorder = this.recorder.status;
     const partials = await listPartialRecordings(config.recording.outputDirectory).catch(() => []);
     const disk = await readDisk(config.recording.outputDirectory);
+    const stats = this.stats.value;
 
     return {
       enabled: config.enabled,
@@ -249,9 +262,15 @@ export class CaptureController extends EventEmitter {
       },
       manualOverride: this.manualOverride,
       expectedStop: schedule.active ? schedule.currentEnd?.toISOString() : undefined,
-      serviceUptimeSeconds: Math.round((Date.now() - Date.parse(this.stats.value.appStartedAt)) / 1000),
-      stats: this.stats.value,
-      lastError: this.lastError ?? this.stats.value.lastError,
+      serviceUptimeSeconds: Math.round((Date.now() - Date.parse(stats.appStartedAt)) / 1000),
+      stats: {
+        ...stats,
+        sessions: stats.sessions.map((session) => ({
+          ...session,
+          recordingDate: sessionDateFrom(new Date(session.startedAt), config.schedule.timezone)
+        }))
+      },
+      lastError: this.lastError ?? stats.lastError,
       partialFiles: partials,
       disk
     };

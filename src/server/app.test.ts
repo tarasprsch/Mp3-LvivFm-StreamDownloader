@@ -133,6 +133,81 @@ describe('app partial file API', () => {
     await expect(response.json()).resolves.toEqual({ error: 'Authentication required' });
   });
 
+  it('returns a populated date-specific recording listing through the authenticated API', async () => {
+    const recordingsForDate = vi.fn(async (date: string) => ({
+      ok: true as const,
+      date,
+      files: [
+        { name: '2026-08-04__01.mp3', size: 3 },
+        { name: '2026-08-04__02-1.mp3', size: 2 }
+      ],
+      filesCount: 2,
+      bytes: 5
+    }));
+    const { baseUrl, cookie } = await fixture({ recordingsForDate } as unknown as Partial<CaptureController>);
+
+    const response = await fetch(`${baseUrl}/api/recordings/2026-08-04`, { headers: { Cookie: cookie } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      date: '2026-08-04',
+      files: [
+        { name: '2026-08-04__01.mp3', size: 3 },
+        { name: '2026-08-04__02-1.mp3', size: 2 }
+      ],
+      filesCount: 2,
+      bytes: 5
+    });
+    expect(recordingsForDate).toHaveBeenCalledWith('2026-08-04');
+  });
+
+  it('returns zero totals for a valid date without recordings', async () => {
+    const recordingsForDate = vi.fn(async (date: string) => ({
+      ok: true as const,
+      date,
+      files: [],
+      filesCount: 0,
+      bytes: 0
+    }));
+    const { baseUrl, cookie } = await fixture({ recordingsForDate } as unknown as Partial<CaptureController>);
+
+    const response = await fetch(`${baseUrl}/api/recordings/2026-08-05`, { headers: { Cookie: cookie } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ date: '2026-08-05', files: [], filesCount: 0, bytes: 0 });
+  });
+
+  it.each(['2026-8-04', '2026-02-30', 'not-a-date'])('rejects invalid recording date %s', async (date) => {
+    const recordingsForDate = vi.fn();
+    const { baseUrl, cookie } = await fixture({ recordingsForDate } as unknown as Partial<CaptureController>);
+
+    const response = await fetch(`${baseUrl}/api/recordings/${date}`, { headers: { Cookie: cookie } });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'Use a valid date in YYYY-MM-DD format.' });
+    expect(recordingsForDate).not.toHaveBeenCalled();
+  });
+
+  it('requires authentication for a date-specific recording listing', async () => {
+    const { baseUrl } = await fixture({});
+
+    const response = await fetch(`${baseUrl}/api/recordings/2026-08-04`);
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: 'Authentication required' });
+  });
+
+  it('returns 500 when the date-specific recording inventory fails', async () => {
+    const { baseUrl, cookie } = await fixture({
+      recordingsForDate: async () => ({ ok: false, error: 'Unable to list recordings.', status: 500 })
+    } as unknown as Partial<CaptureController>);
+
+    const response = await fetch(`${baseUrl}/api/recordings/2026-08-04`, { headers: { Cookie: cookie } });
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'Unable to list recordings.' });
+  });
+
   it.each([
     {},
     { sessionIds: [] },

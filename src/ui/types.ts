@@ -34,6 +34,7 @@ export type StateResponse = {
       id: string;
       source: string;
       startedAt: string;
+      recordingDate: string;
       stoppedAt?: string;
       files: number;
       bytes: number;

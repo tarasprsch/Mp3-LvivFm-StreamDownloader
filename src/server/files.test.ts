@@ -10,6 +10,7 @@ import {
   listPartialRecordings,
   inventoryRecordings,
   listCompletedRecordings,
+  listRecordingsForDate,
   nextRecordingNumber,
   settlePartFile,
   sessionDateFrom
@@ -103,6 +104,39 @@ describe('recording files', () => {
       'nested',
       'song.mp3'
     ]);
+  });
+
+  it('lists exact-date completed recordings with totals in deterministic numeric order', async () => {
+    const directory = await tempDirectory();
+    await writeFile(path.join(directory, '2026-08-04__10.mp3'), 'ten');
+    await writeFile(path.join(directory, '2026-08-04__02-10.mp3'), 'suffix-ten');
+    await writeFile(path.join(directory, '2026-08-04__02-1.mp3'), 'suffix-one');
+    await writeFile(path.join(directory, '2026-08-04__02.mp3'), 'base');
+    await writeFile(path.join(directory, '2026-08-04__01.mp3'), 'one');
+    await writeFile(path.join(directory, '2026-08-03__01.mp3'), 'adjacent');
+    await writeFile(path.join(directory, '2026-08-04__03.mp3.part'), 'partial');
+    await writeFile(path.join(directory, 'song.mp3'), 'unrelated');
+    await mkdir(path.join(directory, '2026-08-04__04.mp3'));
+    await mkdir(path.join(directory, 'nested'));
+    await writeFile(path.join(directory, 'nested', '2026-08-04__05.mp3'), 'nested');
+    try {
+      await symlink(path.join(directory, '2026-08-04__01.mp3'), path.join(directory, '2026-08-04__06.mp3'));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EPERM') throw error;
+    }
+
+    await expect(listRecordingsForDate(directory, '2026-08-04')).resolves.toEqual({
+      date: '2026-08-04',
+      files: [
+        { name: '2026-08-04__01.mp3', size: 3 },
+        { name: '2026-08-04__02.mp3', size: 4 },
+        { name: '2026-08-04__02-1.mp3', size: 10 },
+        { name: '2026-08-04__02-10.mp3', size: 10 },
+        { name: '2026-08-04__10.mp3', size: 3 }
+      ],
+      filesCount: 5,
+      bytes: 30
+    });
   });
 
   it('reports successful counts when deleting a later target fails', async () => {

@@ -233,6 +233,27 @@
   text-align: left;
 }
 
+.main-page__session-start {
+  background: transparent;
+  border-radius: 0;
+  color: #176c72;
+  display: inline;
+  min-height: 0;
+  padding: 10px 8px;
+  text-align: left;
+  text-decoration: underline;
+}
+
+.main-page__session-start:hover {
+  color: #0f4e53;
+}
+
+.main-page__session-start:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid #176c72;
+  outline-offset: -2px;
+}
+
 .main-page__partial-files {
   padding: 14px 16px;
 }

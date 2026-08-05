@@ -166,6 +166,27 @@ describe('MainPage partial files', () => {
     expect(deleteButton).toBeEnabled();
   });
 
+  it('opens the server-provided recording date only from the keyboard-accessible Started control', () => {
+    const openRecordingDate = vi.fn();
+    render(
+      <MainPage
+        state={stateWithSessions()}
+        onRefresh={async () => undefined}
+        onOpenRecordingDate={openRecordingDate}
+      />
+    );
+
+    const started = screen.getByRole('button', { name: /aug 4, 2026/i });
+    expect(started.tagName).toBe('BUTTON');
+    fireEvent.click(started);
+    expect(openRecordingDate).toHaveBeenCalledWith('2026-08-04');
+
+    for (const value of ['manual', 'stopped', '2', '5 B']) {
+      fireEvent.click(screen.getAllByText(value)[0]!);
+    }
+    expect(openRecordingDate).toHaveBeenCalledTimes(1);
+  });
+
   it('disables session selection and Delete while recording is active', () => {
     const pageState = stateWithSessions();
     pageState.recorder.active = true;
@@ -254,6 +275,7 @@ function stateWithSessions(): StateResponse {
       id: 'session-1',
       source: 'manual',
       startedAt: '2026-08-04T10:00:00.000Z',
+      recordingDate: '2026-08-04',
       stoppedAt: '2026-08-04T10:30:00.000Z',
       files: 2,
       bytes: 5,
@@ -263,6 +285,7 @@ function stateWithSessions(): StateResponse {
       id: 'session-2',
       source: 'scheduled',
       startedAt: '2026-08-05T10:00:00.000Z',
+      recordingDate: '2026-08-05',
       stoppedAt: '2026-08-05T10:30:00.000Z',
       files: 1,
       bytes: 4,

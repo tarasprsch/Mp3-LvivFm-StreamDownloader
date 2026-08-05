@@ -101,6 +101,22 @@ export function createApp(options: {
     response.status(result.status).json({ ok: false, error: result.error });
   });
 
+  app.get('/api/recordings/:date', async (request, response) => {
+    const date = request.params.date;
+    if (!isCanonicalCalendarDate(date)) {
+      response.status(400).json({ ok: false, error: 'Use a valid date in YYYY-MM-DD format.' });
+      return;
+    }
+
+    const result = await options.controller.recordingsForDate(date);
+    if (result.ok) {
+      const { ok: _ok, ...listing } = result;
+      response.json(listing);
+      return;
+    }
+    response.status(result.status).json({ ok: false, error: result.error });
+  });
+
   app.post('/api/recordings/delete', async (request, response) => {
     const body = deleteRecordingsSchema.safeParse(request.body);
     if (!body.success) {
@@ -139,4 +155,16 @@ function defaultUiDirectory(): string {
   if (process.env.UI_DIST_DIR) return process.env.UI_DIST_DIR;
   const here = path.dirname(fileURLToPath(import.meta.url));
   return path.resolve(here, '../ui');
+}
+
+function isCanonicalCalendarDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1) return false;
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= days[month - 1]!;
 }

@@ -42,6 +42,23 @@ describe('capture controller transitions', () => {
     });
   });
 
+  it('derives each session recording date in the configured timezone', async () => {
+    const { controller, stats } = await fixture({
+      schedule: { ...defaultConfig.schedule, timezone: 'Europe/Kyiv' }
+    });
+    await addStoppedSession(stats, 'kyiv-boundary', '2026-08-03T21:10:00.000Z');
+
+    await expect(controller.status()).resolves.toMatchObject({
+      stats: {
+        sessions: [expect.objectContaining({
+          id: 'kyiv-boundary',
+          startedAt: '2026-08-03T21:10:00.000Z',
+          recordingDate: '2026-08-04'
+        })]
+      }
+    });
+  });
+
   it('resets manual override after a manual stream failure', async () => {
     const fakeRecorder = new FakeRecorder();
     const { controller } = await fixture({}, fakeRecorder);

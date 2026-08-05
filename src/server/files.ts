@@ -21,6 +21,13 @@ export type CompletedRecording = {
   size: number;
 };
 
+export type RecordingDateListing = {
+  date: string;
+  files: Array<{ name: string; size: number }>;
+  filesCount: number;
+  bytes: number;
+};
+
 export type SettlePartOptions = {
   partPath: string;
   finalPath: string;
@@ -32,7 +39,7 @@ export type SettledPart =
   | { action: 'finalized'; path: string; bytes: number }
   | { action: 'discarded' };
 
-const completedRecordingPattern = /^(\d{4}-\d{2}-\d{2})__(\d{2,})(?:-\d+)?\.mp3$/;
+const completedRecordingPattern = /^(\d{4}-\d{2}-\d{2})__(\d{2,})(?:-(\d+))?\.mp3$/;
 
 export async function ensureOutputDirectory(directory: string): Promise<void> {
   await mkdir(directory, { recursive: true });
@@ -80,6 +87,20 @@ export async function listCompletedRecordings(directory: string): Promise<Comple
   }
 
   return recordings;
+}
+
+export async function listRecordingsForDate(directory: string, date: string): Promise<RecordingDateListing> {
+  const files = (await listCompletedRecordings(directory))
+    .filter((recording) => recording.date === date)
+    .sort(compareCompletedRecordingNames)
+    .map(({ name, size }) => ({ name, size }));
+
+  return {
+    date,
+    files,
+    filesCount: files.length,
+    bytes: files.reduce((total, file) => total + file.size, 0)
+  };
 }
 
 export async function deleteRecordingsForDates(
@@ -213,6 +234,15 @@ async function exists(filePath: string): Promise<boolean> {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function compareCompletedRecordingNames(left: CompletedRecording, right: CompletedRecording): number {
+  const leftMatch = completedRecordingPattern.exec(left.name);
+  const rightMatch = completedRecordingPattern.exec(right.name);
+  const recordingNumber = Number(leftMatch?.[2]) - Number(rightMatch?.[2]);
+  if (recordingNumber !== 0) return recordingNumber;
+  const collisionSuffix = Number(leftMatch?.[3] ?? 0) - Number(rightMatch?.[3] ?? 0);
+  return collisionSuffix || left.name.localeCompare(right.name);
 }
 
 function isSafePartialRecordingName(name: string): boolean {

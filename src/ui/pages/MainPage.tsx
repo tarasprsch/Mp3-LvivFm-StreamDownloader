@@ -8,9 +8,11 @@ import "./MainPage.css";
 export function MainPage({
   state,
   onRefresh,
+  onOpenRecordingDate,
 }: {
   state: StateResponse;
   onRefresh: () => Promise<void>;
+  onOpenRecordingDate?: (date: string) => void;
 }) {
   const [recalculationPending, setRecalculationPending] = useState(false);
   const recalculationPendingRef = useRef(false);
@@ -313,7 +315,15 @@ export function MainPage({
                     onChange={() => toggleSessionSelection(session.id)}
                   />
                 </td>
-                <td>{formatDate(session.startedAt)}</td>
+                <td>
+                  <button
+                    type="button"
+                    className="main-page__session-start"
+                    onClick={() => onOpenRecordingDate?.(session.recordingDate)}
+                  >
+                    {formatDate(session.startedAt)}
+                  </button>
+                </td>
                 <td>{session.source}</td>
                 <td>{session.status}</td>
                 <td>{session.files}</td>
