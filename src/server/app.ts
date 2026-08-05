@@ -11,6 +11,12 @@ const loginSchema = z.object({
   password: z.string()
 });
 
+const deleteRecordingsSchema = z.object({
+  sessionIds: z.array(z.string().min(1)).min(1).max(25).refine(
+    (sessionIds) => new Set(sessionIds).size === sessionIds.length
+  )
+});
+
 export function createApp(options: {
   configStore: ConfigStore;
   controller: CaptureController;
@@ -93,6 +99,22 @@ export function createApp(options: {
       return;
     }
     response.status(result.status).json({ ok: false, error: result.error });
+  });
+
+  app.post('/api/recordings/delete', async (request, response) => {
+    const body = deleteRecordingsSchema.safeParse(request.body);
+    if (!body.success) {
+      response.status(400).json({ ok: false, error: 'Select between 1 and 25 unique sessions.' });
+      return;
+    }
+
+    const result = await options.controller.deleteRecordings(body.data.sessionIds);
+    if (result.ok) {
+      response.json(result);
+      return;
+    }
+    const { status, ...bodyResult } = result;
+    response.status(status).json(bodyResult);
   });
 
   app.delete('/api/partial-files/:name', async (request, response) => {

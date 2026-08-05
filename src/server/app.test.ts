@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { mkdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from './app.js';
 import { ConfigStore, defaultConfig } from './config.js';
 import type { CaptureController } from './controller.js';
@@ -82,6 +82,105 @@ describe('app partial file API', () => {
 
     expect(response.status).toBe(status);
     await expect(response.json()).resolves.toEqual({ ok: false, error });
+  });
+
+  it('deletes selected sessions through the authenticated API', async () => {
+    const stats = {
+      appStartedAt: '2026-08-04T00:00:00.000Z',
+      recordingSeconds: 0,
+      filesCreated: 0,
+      bytesCreated: 0,
+      recordingDays: [],
+      failures: 0,
+      sessions: []
+    };
+    const deleteRecordings = vi.fn(async () => ({
+      ok: true as const,
+      deletedDates: ['2026-08-04'],
+      deletedFiles: 2,
+      deletedBytes: 5,
+      stats
+    }));
+    const { baseUrl, cookie } = await fixture({ deleteRecordings } as Partial<CaptureController>);
+
+    const response = await fetch(`${baseUrl}/api/recordings/delete`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionIds: ['session-1', 'session-2'] })
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      deletedDates: ['2026-08-04'],
+      deletedFiles: 2,
+      deletedBytes: 5,
+      stats
+    });
+    expect(deleteRecordings).toHaveBeenCalledWith(['session-1', 'session-2']);
+  });
+
+  it('requires authentication for completed recording deletion', async () => {
+    const { baseUrl } = await fixture({});
+
+    const response = await fetch(`${baseUrl}/api/recordings/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionIds: ['session-1'] })
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: 'Authentication required' });
+  });
+
+  it.each([
+    {},
+    { sessionIds: [] },
+    { sessionIds: [''] },
+    { sessionIds: ['duplicate', 'duplicate'] },
+    { sessionIds: Array.from({ length: 26 }, (_, index) => `session-${index}`) },
+    { sessionIds: 'session-1' }
+  ])('rejects an invalid completed recording deletion payload %#', async (body) => {
+    const deleteRecordings = vi.fn();
+    const { baseUrl, cookie } = await fixture({ deleteRecordings } as Partial<CaptureController>);
+
+    const response = await fetch(`${baseUrl}/api/recordings/delete`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'Select between 1 and 25 unique sessions.' });
+    expect(deleteRecordings).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [404, 'One or more sessions no longer exist.'],
+    [409, 'Stop recording before deleting recordings.'],
+    [500, 'unlink failed']
+  ])('returns completed recording deletion error status %i', async (status, error) => {
+    const { baseUrl, cookie } = await fixture({
+      deleteRecordings: async () => ({
+        ok: false,
+        error,
+        status,
+        ...(status === 500 ? { deletedFiles: 1, deletedBytes: 3 } : {})
+      })
+    } as unknown as Partial<CaptureController>);
+
+    const response = await fetch(`${baseUrl}/api/recordings/delete`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionIds: ['session-1'] })
+    });
+
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error,
+      ...(status === 500 ? { deletedFiles: 1, deletedBytes: 3 } : {})
+    });
   });
 
   async function fixture(controllerPatch: Partial<CaptureController>) {

@@ -4,10 +4,12 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   deletePartialRecording,
+  deleteRecordingsForDates,
   finalName,
   finalizePartFile,
   listPartialRecordings,
   inventoryRecordings,
+  listCompletedRecordings,
   nextRecordingNumber,
   sessionDateFrom
 } from './files.js';
@@ -57,6 +59,65 @@ describe('recording files', () => {
     const startedAt = new Date('2026-08-03T21:10:00.000Z');
 
     expect(finalName(sessionDateFrom(startedAt, 'Europe/Kyiv'), 1)).toBe('2026-08-04__01.mp3');
+  });
+
+  it('maps session starts to the configured local date across the Kyiv UTC boundary', () => {
+    expect(sessionDateFrom(new Date('2026-08-03T20:59:59.000Z'), 'Europe/Kyiv')).toBe('2026-08-03');
+    expect(sessionDateFrom(new Date('2026-08-03T21:00:00.000Z'), 'Europe/Kyiv')).toBe('2026-08-04');
+  });
+
+  it('lists and deletes only direct recorder-owned completed files for deduplicated dates', async () => {
+    const directory = await tempDirectory();
+    await writeFile(path.join(directory, '2026-08-03__01.mp3'), 'abc');
+    await writeFile(path.join(directory, '2026-08-03__02-1.mp3'), 'de');
+    await writeFile(path.join(directory, '2026-08-04__01.mp3'), 'keep');
+    await writeFile(path.join(directory, '2026-08-03__03.mp3.part'), 'partial');
+    await writeFile(path.join(directory, 'song.mp3'), 'unrelated');
+    await mkdir(path.join(directory, 'nested'));
+    await writeFile(path.join(directory, 'nested', '2026-08-03__04.mp3'), 'nested');
+    let symlinkCreated = false;
+    try {
+      await symlink(path.join(directory, '2026-08-03__01.mp3'), path.join(directory, '2026-08-03__05.mp3'));
+      symlinkCreated = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EPERM') throw error;
+    }
+
+    const listed = await listCompletedRecordings(directory);
+    expect(listed.map(({ name, date, size }) => ({ name, date, size }))).toEqual([
+      { name: '2026-08-03__01.mp3', date: '2026-08-03', size: 3 },
+      { name: '2026-08-03__02-1.mp3', date: '2026-08-03', size: 2 },
+      { name: '2026-08-04__01.mp3', date: '2026-08-04', size: 4 }
+    ]);
+
+    await expect(deleteRecordingsForDates(directory, ['2026-08-03', '2026-08-03'])).resolves.toEqual({
+      deletedFiles: 2,
+      deletedBytes: 5
+    });
+    const remaining = (await readdir(directory)).sort();
+    expect(remaining).toEqual([
+      '2026-08-03__03.mp3.part',
+      ...(symlinkCreated ? ['2026-08-03__05.mp3'] : []),
+      '2026-08-04__01.mp3',
+      'nested',
+      'song.mp3'
+    ]);
+  });
+
+  it('reports successful counts when deleting a later target fails', async () => {
+    const directory = await tempDirectory();
+    await writeFile(path.join(directory, '2026-08-03__01.mp3'), 'abc');
+    await writeFile(path.join(directory, '2026-08-03__02.mp3'), 'de');
+    let calls = 0;
+
+    await expect(deleteRecordingsForDates(directory, ['2026-08-03'], async () => {
+      calls += 1;
+      if (calls === 2) throw new Error('unlink failed');
+    })).rejects.toMatchObject({
+      message: 'Unable to delete one or more recordings.',
+      deletedFiles: 1,
+      deletedBytes: 3
+    });
   });
 
   it('chooses the next number from completed mp3 files and ignores partials', async () => {

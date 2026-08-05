@@ -1,4 +1,4 @@
-import { mkdir, readdir, rename, stat, unlink } from 'node:fs/promises';
+import { lstat, mkdir, readdir, rename, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
 export type PartialRecording = {
@@ -13,6 +13,15 @@ export type RecordingInventory = {
   bytesCreated: number;
   recordingDays: string[];
 };
+
+export type CompletedRecording = {
+  name: string;
+  path: string;
+  date: string;
+  size: number;
+};
+
+const completedRecordingPattern = /^(\d{4}-\d{2}-\d{2})__(\d{2,})(?:-\d+)?\.mp3$/;
 
 export async function ensureOutputDirectory(directory: string): Promise<void> {
   await mkdir(directory, { recursive: true });
@@ -32,27 +41,67 @@ export async function listPartialRecordings(directory: string): Promise<PartialR
 }
 
 export async function inventoryRecordings(directory: string, bitrateKbps: number): Promise<RecordingInventory> {
-  await ensureOutputDirectory(directory);
-  const entries = await readdir(directory, { withFileTypes: true });
-  const completedPattern = /^(\d{4}-\d{2}-\d{2})__(\d{2,})(?:-\d+)?\.mp3$/;
-  let bytesCreated = 0;
-  let filesCreated = 0;
+  const recordings = await listCompletedRecordings(directory);
+  const bytesCreated = recordings.reduce((total, recording) => total + recording.size, 0);
   const recordingDays = new Set<string>();
-
-  for (const entry of entries) {
-    const match = completedPattern.exec(entry.name);
-    if (!entry.isFile() || !match?.[1]) continue;
-    bytesCreated += (await stat(path.join(directory, entry.name))).size;
-    filesCreated += 1;
-    recordingDays.add(match[1]);
-  }
+  for (const recording of recordings) recordingDays.add(recording.date);
 
   return {
     recordingSeconds: Math.round(bytesCreated * 8 / (bitrateKbps * 1_000)),
-    filesCreated,
+    filesCreated: recordings.length,
     bytesCreated,
     recordingDays: [...recordingDays].sort()
   };
+}
+
+export async function listCompletedRecordings(directory: string): Promise<CompletedRecording[]> {
+  await ensureOutputDirectory(directory);
+  const entries = await readdir(directory, { withFileTypes: true });
+  const recordings: CompletedRecording[] = [];
+
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+    const match = completedRecordingPattern.exec(entry.name);
+    if (!entry.isFile() || !match?.[1]) continue;
+    const filePath = path.join(directory, entry.name);
+    const info = await lstat(filePath);
+    if (!info.isFile() || info.isSymbolicLink()) continue;
+    recordings.push({ name: entry.name, path: filePath, date: match[1], size: info.size });
+  }
+
+  return recordings;
+}
+
+export async function deleteRecordingsForDates(
+  directory: string,
+  dates: Iterable<string>,
+  removeFile: (filePath: string) => Promise<void> = unlink
+): Promise<{ deletedFiles: number; deletedBytes: number }> {
+  const requestedDates = new Set(dates);
+  const targets = (await listCompletedRecordings(directory)).filter((recording) => requestedDates.has(recording.date));
+  let deletedFiles = 0;
+  let deletedBytes = 0;
+
+  for (const target of targets) {
+    try {
+      await removeFile(target.path);
+      deletedFiles += 1;
+      deletedBytes += target.size;
+    } catch {
+      throw new RecordingDeleteError('Unable to delete one or more recordings.', deletedFiles, deletedBytes);
+    }
+  }
+
+  return { deletedFiles, deletedBytes };
+}
+
+export class RecordingDeleteError extends Error {
+  constructor(
+    message: string,
+    readonly deletedFiles: number,
+    readonly deletedBytes: number
+  ) {
+    super(message);
+  }
 }
 
 export async function deletePartialRecording(directory: string, name: string): Promise<void> {

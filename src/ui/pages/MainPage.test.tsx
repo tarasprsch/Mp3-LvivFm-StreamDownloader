@@ -107,7 +107,124 @@ describe('MainPage partial files', () => {
     await waitFor(() => expect(alert).toHaveBeenCalledWith('scan failed'));
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  it('renders one accessible checkbox per recent session and enables Delete only after selection', () => {
+    const pageState = stateWithSessions();
+    render(<MainPage state={pageState} onRefresh={async () => undefined} />);
+    const deleteButton = screen.getByRole('button', { name: /delete selected sessions/i });
+    const checkboxes = screen.getAllByRole('checkbox', { name: /select session started/i });
+
+    expect(checkboxes).toHaveLength(2);
+    expect(deleteButton).toBeDisabled();
+    fireEvent.click(checkboxes[0]!);
+    expect(deleteButton).toBeEnabled();
+  });
+
+  it('disables session selection and Delete while recording is active', () => {
+    const pageState = stateWithSessions();
+    pageState.recorder.active = true;
+    render(<MainPage state={pageState} onRefresh={async () => undefined} />);
+
+    expect(screen.getAllByRole('checkbox', { name: /select session started/i })[0]).toBeDisabled();
+    expect(screen.getByRole('button', { name: /delete selected sessions/i })).toBeDisabled();
+  });
+
+  it('does not request deletion when destructive confirmation is cancelled', () => {
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<MainPage state={stateWithSessions()} onRefresh={async () => undefined} />);
+    fireEvent.click(screen.getAllByRole('checkbox', { name: /select session started/i })[0]!);
+
+    fireEvent.click(screen.getByRole('button', { name: /delete selected sessions/i }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/all recordings.*day or days.*permanently deleted/i));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('prevents duplicate deletion, clears selection, and refreshes after success', async () => {
+    const refresh = vi.fn(async () => undefined);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    let resolveRequest!: (response: Response) => void;
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(
+      () => new Promise<Response>((resolve) => { resolveRequest = resolve; })
+    );
+    render(<MainPage state={stateWithSessions()} onRefresh={refresh} />);
+    fireEvent.click(screen.getAllByRole('checkbox', { name: /select session started/i })[0]!);
+    const deleteButton = screen.getByRole('button', { name: /delete selected sessions/i });
+
+    fireEvent.click(deleteButton);
+    fireEvent.click(deleteButton);
+
+    expect(deleteButton).toBeDisabled();
+    expect(screen.getAllByRole('checkbox', { name: /select session started/i })[0]).toBeDisabled();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith('/api/recordings/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionIds: ['session-1'] })
+    });
+    resolveRequest({ ok: true, json: async () => ({ ok: true }) } as Response);
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    expect(screen.getAllByRole('checkbox', { name: /select session started/i })[0]).not.toBeChecked();
+    expect(deleteButton).toBeDisabled();
+  });
+
+  it('shows a deletion error and still refreshes partial results', async () => {
+    const refresh = vi.fn(async () => undefined);
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      json: async () => ({ ok: false, error: 'unlink failed', deletedFiles: 1 })
+    } as Response);
+    render(<MainPage state={stateWithSessions()} onRefresh={refresh} />);
+    fireEvent.click(screen.getAllByRole('checkbox', { name: /select session started/i })[0]!);
+
+    fireEvent.click(screen.getByRole('button', { name: /delete selected sessions/i }));
+
+    await waitFor(() => expect(alert).toHaveBeenCalledWith('unlink failed'));
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+  });
+
+  it('drops selected IDs when refreshed state removes their rows', () => {
+    const pageState = stateWithSessions();
+    const { rerender } = render(<MainPage state={pageState} onRefresh={async () => undefined} />);
+    fireEvent.click(screen.getAllByRole('checkbox', { name: /select session started/i })[0]!);
+    expect(screen.getByRole('button', { name: /delete selected sessions/i })).toBeEnabled();
+
+    const refreshed = structuredClone(pageState);
+    refreshed.stats.sessions = refreshed.stats.sessions.filter((session) => session.id !== 'session-1');
+    rerender(<MainPage state={refreshed} onRefresh={async () => undefined} />);
+
+    expect(screen.getByRole('button', { name: /delete selected sessions/i })).toBeDisabled();
+  });
 });
+
+function stateWithSessions(): StateResponse {
+  const pageState = state();
+  pageState.recorder.active = false;
+  pageState.stats.sessions = [
+    {
+      id: 'session-1',
+      source: 'manual',
+      startedAt: '2026-08-04T10:00:00.000Z',
+      stoppedAt: '2026-08-04T10:30:00.000Z',
+      files: 2,
+      bytes: 5,
+      status: 'stopped'
+    },
+    {
+      id: 'session-2',
+      source: 'scheduled',
+      startedAt: '2026-08-05T10:00:00.000Z',
+      stoppedAt: '2026-08-05T10:30:00.000Z',
+      files: 1,
+      bytes: 4,
+      status: 'stopped'
+    }
+  ];
+  return pageState;
+}
 
 function state(): StateResponse {
   return {

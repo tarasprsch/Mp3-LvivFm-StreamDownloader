@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import type { RecordingInventory } from './files.js';
+import { sessionDateFrom } from './files.js';
 
 const recordingInventorySchema = z.object({
   recordingSeconds: z.number().int().nonnegative(),
@@ -121,6 +122,18 @@ export class StatsStore {
     const next = statsSchema.parse({
       ...this.current,
       ...validated
+    });
+    await this.persist(next);
+    this.current = next;
+    return this.value;
+  }
+
+  async removeSessionsForDates(dates: ReadonlySet<string>, timeZone: string): Promise<AppStats> {
+    const next = statsSchema.parse({
+      ...this.current,
+      sessions: this.current.sessions.filter(
+        (session) => !dates.has(sessionDateFrom(new Date(session.startedAt), timeZone))
+      )
     });
     await this.persist(next);
     this.current = next;

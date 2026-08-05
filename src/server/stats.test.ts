@@ -45,6 +45,25 @@ describe('statistics store', () => {
 
     expect(store.value.recordingDays).toEqual(['2026-08-04']);
   });
+
+  it('atomically removes every session on supplied configured-local dates and preserves other fields', async () => {
+    const directory = await tempDirectory();
+    const store = new StatsStore(directory);
+    await store.load();
+    await store.startSession('same-day-1', 'manual', new Date('2026-08-03T21:10:00.000Z'));
+    await store.startSession('same-day-2', 'scheduled', new Date('2026-08-04T12:00:00.000Z'));
+    await store.startSession('other-day', 'manual', new Date('2026-08-05T12:00:00.000Z'));
+    await store.addFailure('preserve me');
+    const before = store.value;
+
+    const updated = await store.removeSessionsForDates(new Set(['2026-08-04']), 'Europe/Kyiv');
+    const persisted = JSON.parse(await readFile(path.join(directory, 'stats.json'), 'utf8'));
+
+    expect(updated.sessions.map((session) => session.id)).toEqual(['other-day']);
+    expect(updated).toEqual({ ...before, sessions: [before.sessions[0]] });
+    expect(persisted).toEqual(updated);
+    expect((await readdir(directory)).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+  });
 });
 
 async function tempDirectory(): Promise<string> {

@@ -13,6 +13,7 @@ export type LogEvent =
   | 'stream_error'
   | 'storage_error'
   | 'statistics_recalculated'
+  | 'recordings_deleted'
   | 'config_validation_error'
   | 'partial_files_found';
 

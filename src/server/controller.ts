@@ -3,9 +3,12 @@ import { EventEmitter } from 'node:events';
 import { type AppConfig, type ConfigStore } from './config.js';
 import {
   deletePartialRecording,
+  deleteRecordingsForDates,
   inventoryRecordings,
   listPartialRecordings,
   PartialRecordingDeleteError,
+  RecordingDeleteError,
+  sessionDateFrom,
   type RecordingInventory
 } from './files.js';
 import type { AppLogger } from './logger.js';
@@ -30,7 +33,8 @@ export class CaptureController extends EventEmitter {
     private readonly logger: AppLogger,
     private readonly stats: StatsStore,
     private readonly recorder: RecorderLike = new Recorder(),
-    private readonly inventory: (directory: string, bitrateKbps: number) => Promise<RecordingInventory> = inventoryRecordings
+    private readonly inventory: (directory: string, bitrateKbps: number) => Promise<RecordingInventory> = inventoryRecordings,
+    private readonly deleteCompletedRecordings: typeof deleteRecordingsForDates = deleteRecordingsForDates
   ) {
     super();
     this.recorder.on('file', ({ bytes }) => {
@@ -147,6 +151,79 @@ export class CaptureController extends EventEmitter {
       return { ok: true as const, stats };
     } catch (error) {
       return { ok: false as const, error: describeError(error), status: 500 as const };
+    }
+  }
+
+  async deleteRecordings(sessionIds: string[]) {
+    const sessions = this.stats.value.sessions;
+    const sessionsById = new Map(sessions.map((session) => [session.id, session]));
+    if (sessionIds.some((id) => !sessionsById.has(id))) {
+      return {
+        ok: false as const,
+        error: 'One or more sessions no longer exist.',
+        status: 404 as const
+      };
+    }
+    if (this.recorder.active) {
+      return {
+        ok: false as const,
+        error: 'Stop recording before deleting recordings.',
+        status: 409 as const
+      };
+    }
+
+    const config = this.configStore.value;
+    const dates = [...new Set(
+      sessionIds.map((id) => sessionDateFrom(new Date(sessionsById.get(id)!.startedAt), config.schedule.timezone))
+    )].sort();
+    let deletedFiles = 0;
+    let deletedBytes = 0;
+    let deletionError: Error | undefined;
+
+    try {
+      const deleted = await this.deleteCompletedRecordings(config.recording.outputDirectory, dates);
+      deletedFiles = deleted.deletedFiles;
+      deletedBytes = deleted.deletedBytes;
+    } catch (error) {
+      deletionError = error instanceof Error ? error : new Error(String(error));
+      if (error instanceof RecordingDeleteError) {
+        deletedFiles = error.deletedFiles;
+        deletedBytes = error.deletedBytes;
+      }
+    }
+
+    try {
+      const inventory = await this.inventory(config.recording.outputDirectory, config.stream.bitrateKbps);
+      await this.stats.replaceRecordingInventory(inventory);
+      const remainingDates = new Set(inventory.recordingDays);
+      const fullyDeletedDates = new Set(dates.filter((date) => !remainingDates.has(date)));
+      const stats = await this.stats.removeSessionsForDates(fullyDeletedDates, config.schedule.timezone);
+      await this.logger.log('recordings_deleted', 'Completed recordings deleted', {
+        requestedSessionIds: sessionIds,
+        affectedDates: dates,
+        deletedFiles,
+        deletedBytes
+      });
+
+      if (deletionError) {
+        return {
+          ok: false as const,
+          error: describeError(deletionError),
+          status: 500 as const,
+          deletedFiles,
+          deletedBytes,
+          stats
+        };
+      }
+      return { ok: true as const, deletedDates: dates, deletedFiles, deletedBytes, stats };
+    } catch {
+      return {
+        ok: false as const,
+        error: 'Unable to refresh recording statistics after deletion.',
+        status: 500 as const,
+        deletedFiles,
+        deletedBytes
+      };
     }
   }
 
