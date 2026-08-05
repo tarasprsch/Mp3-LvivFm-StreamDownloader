@@ -156,6 +156,7 @@ export class CaptureController extends EventEmitter {
       this.lastScheduleActive = false;
       this.blockedWindowId = undefined;
       this.failedWindowId = undefined;
+      if (this.manualOverride === 'stopped-until-next-start') this.manualOverride = 'none';
       if (this.recorder.active && this.currentSource === 'scheduled') await this.stopForScheduleEnd();
       if (scheduleJustEnded && this.recorder.active && this.currentSource === 'manual') {
         await this.stopForScheduleEnd();
@@ -165,6 +166,10 @@ export class CaptureController extends EventEmitter {
     }
 
     this.lastScheduleActive = true;
+    if (this.manualOverride === 'stopped-until-next-start' && this.blockedWindowId !== schedule.windowId) {
+      this.manualOverride = 'none';
+      this.blockedWindowId = undefined;
+    }
     if (this.recorder.active) return;
     if (!config.enabled) return;
     if (this.blockedWindowId === schedule.windowId) return;
@@ -188,7 +193,8 @@ export class CaptureController extends EventEmitter {
       source,
       streamUrl: config.stream.url,
       outputDirectory: config.recording.outputDirectory,
-      splitMegabytes: config.recording.splitSize
+      splitMegabytes: config.recording.splitSize,
+      timezone: config.schedule.timezone
     });
     this.currentSessionId = session.id;
     this.currentSource = source;
@@ -245,6 +251,7 @@ export type RecorderLike = EventEmitter & {
     streamUrl: string;
     outputDirectory: string;
     splitMegabytes: number;
+    timezone: string;
   }): Promise<RecorderSession>;
   stop(): Promise<void>;
 };

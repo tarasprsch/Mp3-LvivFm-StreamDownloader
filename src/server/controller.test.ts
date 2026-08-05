@@ -2,14 +2,18 @@ import { EventEmitter } from 'node:events';
 import { mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConfigStore, defaultConfig } from './config.js';
 import { CaptureController, type RecorderLike } from './controller.js';
 import { AppLogger } from './logger.js';
-import type { RecorderSession, RecorderStatus } from './recorder.js';
+import type { RecorderSession, RecorderSource, RecorderStatus } from './recorder.js';
 import { StatsStore } from './stats.js';
 
 describe('capture controller transitions', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('blocks manual start when capture is disabled', async () => {
     const { controller } = await fixture({ enabled: false });
 
@@ -34,6 +38,28 @@ describe('capture controller transitions', () => {
       manualOverride: 'none',
       lastError: 'stream dropped'
     });
+  });
+
+  it('resumes scheduled recording in the next window after a manual stop', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-04T20:10:00.000Z'));
+    const fakeRecorder = new FakeRecorder();
+    const { controller } = await fixture({}, fakeRecorder);
+
+    try {
+      await controller.start();
+      expect(fakeRecorder.startCalls).toEqual(['scheduled']);
+
+      await controller.manualStop();
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(fakeRecorder.startCalls).toEqual(['scheduled']);
+
+      vi.setSystemTime(new Date('2026-08-05T20:10:00.000Z'));
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(fakeRecorder.startCalls).toEqual(['scheduled', 'scheduled']);
+    } finally {
+      await controller.shutdown();
+    }
   });
 
   it('refuses to delete the current active partial file', async () => {
@@ -77,6 +103,7 @@ class FakeRecorder extends EventEmitter implements RecorderLike {
   active = false;
   currentFilename: string | undefined;
   currentPartFilename: string | undefined;
+  readonly startCalls: RecorderSource[] = [];
   private session: RecorderSession | undefined;
 
   get status(): RecorderStatus {
@@ -94,8 +121,9 @@ class FakeRecorder extends EventEmitter implements RecorderLike {
 
   async start(options: Parameters<RecorderLike['start']>[0]): Promise<RecorderSession> {
     this.active = true;
+    this.startCalls.push(options.source);
     this.session = {
-      id: 'fake-session',
+      id: `fake-session-${this.startCalls.length}`,
       source: options.source,
       streamUrl: options.streamUrl,
       outputDirectory: options.outputDirectory,
