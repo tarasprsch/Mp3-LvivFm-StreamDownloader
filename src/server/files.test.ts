@@ -2,9 +2,22 @@ import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { deletePartialRecording, finalizePartFile, listPartialRecordings, nextRecordingNumber } from './files.js';
+import {
+  deletePartialRecording,
+  finalName,
+  finalizePartFile,
+  listPartialRecordings,
+  nextRecordingNumber,
+  sessionDateFrom
+} from './files.js';
 
 describe('recording files', () => {
+  it('uses the configured timezone for the recording filename date', () => {
+    const startedAt = new Date('2026-08-03T21:10:00.000Z');
+
+    expect(finalName(sessionDateFrom(startedAt, 'Europe/Kyiv'), 1)).toBe('2026-08-04__01.mp3');
+  });
+
   it('chooses the next number from completed mp3 files and ignores partials', async () => {
     const directory = await tempDirectory();
     await writeFile(path.join(directory, '2026-06-17__01.mp3'), 'a');

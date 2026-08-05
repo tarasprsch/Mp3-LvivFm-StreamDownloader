@@ -80,8 +80,16 @@ export async function finalizePartFile(partPath: string, finalPath: string): Pro
   return target;
 }
 
-export function sessionDateFrom(date: Date): string {
-  return date.toISOString().slice(0, 10);
+export function sessionDateFrom(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
 async function exists(filePath: string): Promise<boolean> {

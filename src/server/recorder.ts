@@ -82,11 +82,12 @@ export class Recorder extends EventEmitter {
     streamUrl: string;
     outputDirectory: string;
     splitMegabytes: number;
+    timezone: string;
   }): Promise<RecorderSession> {
     if (this.session) return this.session;
     await ensureOutputDirectory(options.outputDirectory);
     const startedAt = new Date();
-    const sessionDate = sessionDateFrom(startedAt);
+    const sessionDate = sessionDateFrom(startedAt, options.timezone);
     this.nextNumber = await nextRecordingNumber(options.outputDirectory, sessionDate);
     this.controller = new AbortController();
     this.stopping = false;
