@@ -1,6 +1,6 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -206,6 +206,99 @@ describe('app partial file API', () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ ok: false, error: 'Unable to list recordings.' });
+  });
+
+  it('serves an authenticated completed recording inline as MPEG audio', async () => {
+    let recordingPath = '';
+    const recordingFile = vi.fn(async () => ({ ok: true as const, path: recordingPath }));
+    const { baseUrl, cookie, directory } = await fixture({ recordingFile } as unknown as Partial<CaptureController>);
+    recordingPath = path.join(directory, '2026-08-04__01.mp3');
+    await writeFile(recordingPath, '0123456789');
+
+    const response = await fetch(`${baseUrl}/api/recordings/2026-08-04/files/2026-08-04__01.mp3`, {
+      headers: { Cookie: cookie }
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('audio/mpeg');
+    expect(response.headers.get('accept-ranges')).toBe('bytes');
+    await expect(response.text()).resolves.toBe('0123456789');
+    expect(recordingFile).toHaveBeenCalledWith('2026-08-04', '2026-08-04__01.mp3');
+  });
+
+  it('supports byte ranges for completed recording playback', async () => {
+    let recordingPath = '';
+    const recordingFile = vi.fn(async () => ({ ok: true as const, path: recordingPath }));
+    const { baseUrl, cookie, directory } = await fixture({ recordingFile } as unknown as Partial<CaptureController>);
+    recordingPath = path.join(directory, '2026-08-04__01.mp3');
+    await writeFile(recordingPath, '0123456789');
+
+    const response = await fetch(`${baseUrl}/api/recordings/2026-08-04/files/2026-08-04__01.mp3`, {
+      headers: { Cookie: cookie, Range: 'bytes=2-5' }
+    });
+
+    expect(response.status).toBe(206);
+    expect(response.headers.get('content-range')).toBe('bytes 2-5/10');
+    expect(response.headers.get('accept-ranges')).toBe('bytes');
+    await expect(response.text()).resolves.toBe('2345');
+  });
+
+  it('returns range-not-satisfiable for an invalid playback range', async () => {
+    let recordingPath = '';
+    const recordingFile = vi.fn(async () => ({ ok: true as const, path: recordingPath }));
+    const { baseUrl, cookie, directory } = await fixture({ recordingFile } as unknown as Partial<CaptureController>);
+    recordingPath = path.join(directory, '2026-08-04__01.mp3');
+    await writeFile(recordingPath, '0123456789');
+
+    const response = await fetch(`${baseUrl}/api/recordings/2026-08-04/files/2026-08-04__01.mp3`, {
+      headers: { Cookie: cookie, Range: 'bytes=20-30' }
+    });
+
+    expect(response.status).toBe(416);
+    expect(response.headers.get('content-range')).toBe('bytes */10');
+  });
+
+  it('requires authentication for completed recording playback', async () => {
+    const recordingFile = vi.fn();
+    const { baseUrl } = await fixture({ recordingFile } as unknown as Partial<CaptureController>);
+
+    const response = await fetch(`${baseUrl}/api/recordings/2026-08-04/files/2026-08-04__01.mp3`);
+
+    expect(response.status).toBe(401);
+    expect(recordingFile).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['2026-02-30', '2026-02-30__01.mp3'],
+    ['2026-08-04', 'song.mp3'],
+    ['2026-08-04', '2026-08-04__01.mp3.part'],
+    ['2026-08-04', '2026-08-05__01.mp3'],
+    ['2026-08-04', '..%2F2026-08-04__01.mp3']
+  ])('rejects invalid playback target %s / %s', async (date, name) => {
+    const recordingFile = vi.fn();
+    const { baseUrl, cookie } = await fixture({ recordingFile } as unknown as Partial<CaptureController>);
+
+    const response = await fetch(`${baseUrl}/api/recordings/${date}/files/${name}`, { headers: { Cookie: cookie } });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'Use a valid completed recording filename for this date.' });
+    expect(recordingFile).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [404, 'Recording file was not found.'],
+    [500, 'Unable to open recording file.']
+  ])('returns playback lookup error status %i', async (status, error) => {
+    const { baseUrl, cookie } = await fixture({
+      recordingFile: async () => ({ ok: false, error, status })
+    } as unknown as Partial<CaptureController>);
+
+    const response = await fetch(`${baseUrl}/api/recordings/2026-08-04/files/2026-08-04__01.mp3`, {
+      headers: { Cookie: cookie }
+    });
+
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toEqual({ ok: false, error });
   });
 
   it.each([

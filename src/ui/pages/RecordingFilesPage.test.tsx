@@ -30,10 +30,63 @@ describe('RecordingFilesPage', () => {
     render(<RecordingFilesPage date="2026-08-04" onBack={() => undefined} />);
 
     expect(await screen.findByRole('table', { name: 'Recordings for 2026-08-04' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'File' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Size' })).toBeInTheDocument();
+    expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+      'File',
+      'Playback',
+      'Size'
+    ]);
     expect(screen.getByText('2026-08-04__01.mp3')).toBeInTheDocument();
     expect(screen.getByText('1.5 KB')).toBeInTheDocument();
+
+    const firstPlayer = screen.getByLabelText('Play 2026-08-04__01.mp3') as HTMLAudioElement;
+    expect(firstPlayer).toHaveAttribute(
+      'src',
+      '/api/recordings/2026-08-04/files/2026-08-04__01.mp3'
+    );
+    expect(firstPlayer).toHaveAttribute('controls');
+    expect(firstPlayer).toHaveAttribute('preload', 'none');
+    expect(firstPlayer).not.toHaveAttribute('autoplay');
+  });
+
+  it('shows and clears a concise playback error for the affected row', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(response({
+      date: '2026-08-04',
+      files: [{ name: '2026-08-04__01.mp3', size: 5 }],
+      filesCount: 1,
+      bytes: 5
+    }));
+    render(<RecordingFilesPage date="2026-08-04" onBack={() => undefined} />);
+    const player = await screen.findByLabelText('Play 2026-08-04__01.mp3');
+
+    fireEvent.error(player);
+    expect(screen.getByRole('alert')).toHaveTextContent('Unable to play this recording.');
+
+    fireEvent.canPlay(player);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('pauses the previous recording when another row starts playing', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(response({
+      date: '2026-08-04',
+      files: [
+        { name: '2026-08-04__01.mp3', size: 5 },
+        { name: '2026-08-04__02.mp3', size: 6 }
+      ],
+      filesCount: 2,
+      bytes: 11
+    }));
+    render(<RecordingFilesPage date="2026-08-04" onBack={() => undefined} />);
+    const first = await screen.findByLabelText('Play 2026-08-04__01.mp3') as HTMLAudioElement;
+    const second = screen.getByLabelText('Play 2026-08-04__02.mp3') as HTMLAudioElement;
+    const pauseFirst = vi.spyOn(first, 'pause').mockImplementation(() => undefined);
+
+    fireEvent.play(first);
+    fireEvent.play(second);
+
+    expect(pauseFirst).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).not.toHaveBeenCalledWith('/api/manual/start', expect.anything());
+    expect(fetch).not.toHaveBeenCalledWith('/api/manual/stop', expect.anything());
   });
 
   it('shows a clear empty-day message', async () => {
@@ -91,6 +144,11 @@ describe('RecordingFilesPage', () => {
     }));
     await waitFor(() => expect(screen.queryByText('2026-08-04__01.mp3')).not.toBeInTheDocument());
     expect(screen.getByText('2026-08-05__01.mp3')).toBeInTheDocument();
+    expect(screen.getByLabelText('Play 2026-08-05__01.mp3')).toHaveAttribute(
+      'src',
+      '/api/recordings/2026-08-05/files/2026-08-05__01.mp3'
+    );
+    expect(screen.queryByLabelText('Play 2026-08-04__01.mp3')).not.toBeInTheDocument();
   });
 });
 

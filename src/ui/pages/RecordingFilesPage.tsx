@@ -1,5 +1,5 @@
 import { ArrowLeft } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatBytes } from '../format';
 import './RecordingFilesPage.css';
 
@@ -18,12 +18,16 @@ type RecordingListing = {
 export function RecordingFilesPage({ date, onBack }: { date: string; onBack: () => void }) {
   const [listing, setListing] = useState<RecordingListing>();
   const [error, setError] = useState('');
+  const [playbackErrors, setPlaybackErrors] = useState<Set<string>>(() => new Set());
+  const activePlayer = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     let current = true;
     setListing(undefined);
     setError('');
+    setPlaybackErrors(new Set());
+    activePlayer.current = null;
 
     void fetch(`/api/recordings/${encodeURIComponent(date)}`, { signal: controller.signal })
       .then(async (response) => {
@@ -44,6 +48,20 @@ export function RecordingFilesPage({ date, onBack }: { date: string; onBack: () 
       controller.abort();
     };
   }, [date]);
+
+  const setPlaybackError = (name: string, failed: boolean) => {
+    setPlaybackErrors((previous) => {
+      const next = new Set(previous);
+      if (failed) next.add(name);
+      else next.delete(name);
+      return next;
+    });
+  };
+
+  const handlePlay = (player: HTMLAudioElement) => {
+    if (activePlayer.current && activePlayer.current !== player) activePlayer.current.pause();
+    activePlayer.current = player;
+  };
 
   return (
     <div className="recording-files-page">
@@ -66,6 +84,7 @@ export function RecordingFilesPage({ date, onBack }: { date: string; onBack: () 
             <thead>
               <tr>
                 <th>File</th>
+                <th>Playback</th>
                 <th>Size</th>
               </tr>
             </thead>
@@ -73,6 +92,27 @@ export function RecordingFilesPage({ date, onBack }: { date: string; onBack: () 
               {listing.files.map((file) => (
                 <tr key={file.name}>
                   <td>{file.name}</td>
+                  <td className="recording-files-page__playback">
+                    <audio
+                      aria-label={`Play ${file.name}`}
+                      controls
+                      preload="none"
+                      src={recordingUrl(date, file.name)}
+                      onPlay={(event) => handlePlay(event.currentTarget)}
+                      onEnded={(event) => {
+                        if (activePlayer.current === event.currentTarget) activePlayer.current = null;
+                      }}
+                      onError={() => setPlaybackError(file.name, true)}
+                      onCanPlay={() => setPlaybackError(file.name, false)}
+                    >
+                      Your browser does not support the audio element.
+                    </audio>
+                    {playbackErrors.has(file.name) && (
+                      <p className="recording-files-page__playback-error" role="alert">
+                        Unable to play this recording.
+                      </p>
+                    )}
+                  </td>
                   <td>{formatBytes(file.size)}</td>
                 </tr>
               ))}
@@ -82,4 +122,8 @@ export function RecordingFilesPage({ date, onBack }: { date: string; onBack: () 
       </section>
     </div>
   );
+}
+
+function recordingUrl(date: string, name: string): string {
+  return `/api/recordings/${encodeURIComponent(date)}/files/${encodeURIComponent(name)}`;
 }

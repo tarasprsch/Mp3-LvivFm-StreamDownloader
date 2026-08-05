@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { AuthService, clearSessionCookie, readCookie, setSessionCookie } from './auth.js';
 import { ConfigStore, describeConfigError, exposeSettings, publicSettingsSchema } from './config.js';
 import type { CaptureController } from './controller.js';
+import { isCompletedRecordingNameForDate } from './files.js';
 import type { AppLogger } from './logger.js';
 
 const loginSchema = z.object({
@@ -115,6 +116,24 @@ export function createApp(options: {
       return;
     }
     response.status(result.status).json({ ok: false, error: result.error });
+  });
+
+  app.get('/api/recordings/:date/files/:name', async (request, response) => {
+    const { date, name } = request.params;
+    if (!isCanonicalCalendarDate(date) || !isCompletedRecordingNameForDate(name, date)) {
+      response.status(400).json({ ok: false, error: 'Use a valid completed recording filename for this date.' });
+      return;
+    }
+
+    const result = await options.controller.recordingFile(date, name);
+    if (!result.ok) {
+      response.status(result.status).json({ ok: false, error: result.error });
+      return;
+    }
+
+    response.type('audio/mpeg');
+    response.setHeader('Content-Disposition', `inline; filename="${name}"`);
+    response.sendFile(result.path);
   });
 
   app.post('/api/recordings/delete', async (request, response) => {

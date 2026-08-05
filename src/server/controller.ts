@@ -4,6 +4,7 @@ import { type AppConfig, type ConfigStore } from './config.js';
 import {
   deletePartialRecording,
   deleteRecordingsForDates,
+  findCompletedRecording,
   inventoryRecordings,
   listPartialRecordings,
   listRecordingsForDate,
@@ -236,6 +237,22 @@ export class CaptureController extends EventEmitter {
       };
     } catch {
       return { ok: false as const, error: 'Unable to list recordings.', status: 500 as const };
+    }
+  }
+
+  async recordingFile(date: string, name: string) {
+    try {
+      const recording = await findCompletedRecording(
+        this.configStore.value.recording.outputDirectory,
+        date,
+        name
+      );
+      if (!recording) {
+        return { ok: false as const, error: 'Recording file was not found.', status: 404 as const };
+      }
+      return { ok: true as const, path: recording.path };
+    } catch {
+      return { ok: false as const, error: 'Unable to open recording file.', status: 500 as const };
     }
   }
 

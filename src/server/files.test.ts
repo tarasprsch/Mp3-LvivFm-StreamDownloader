@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   deletePartialRecording,
   deleteRecordingsForDates,
+  findCompletedRecording,
   finalName,
   finalizePartFile,
   listPartialRecordings,
@@ -137,6 +138,36 @@ describe('recording files', () => {
       filesCount: 5,
       bytes: 30
     });
+  });
+
+  it('resolves only an exact recorder-owned direct child for playback', async () => {
+    const directory = await tempDirectory();
+    const expectedPath = path.join(directory, '2026-08-04__01.mp3');
+    await writeFile(expectedPath, 'playable');
+    await writeFile(path.join(directory, '2026-08-04__02.mp3.part'), 'partial');
+    await writeFile(path.join(directory, 'song.mp3'), 'unrelated');
+    await writeFile(path.join(directory, '2026-08-05__01.mp3'), 'adjacent');
+    await mkdir(path.join(directory, '2026-08-04__03.mp3'));
+    await mkdir(path.join(directory, 'nested'));
+    await writeFile(path.join(directory, 'nested', '2026-08-04__04.mp3'), 'nested');
+    try {
+      await symlink(expectedPath, path.join(directory, '2026-08-04__05.mp3'));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EPERM') throw error;
+    }
+
+    await expect(findCompletedRecording(directory, '2026-08-04', '2026-08-04__01.mp3')).resolves.toMatchObject({
+      name: '2026-08-04__01.mp3',
+      path: expectedPath,
+      date: '2026-08-04',
+      size: 8
+    });
+    await expect(findCompletedRecording(directory, '2026-08-04', '2026-08-04__02.mp3.part')).resolves.toBeUndefined();
+    await expect(findCompletedRecording(directory, '2026-08-04', 'song.mp3')).resolves.toBeUndefined();
+    await expect(findCompletedRecording(directory, '2026-08-04', '2026-08-05__01.mp3')).resolves.toBeUndefined();
+    await expect(findCompletedRecording(directory, '2026-08-04', '2026-08-04__03.mp3')).resolves.toBeUndefined();
+    await expect(findCompletedRecording(directory, '2026-08-04', 'nested/2026-08-04__04.mp3')).resolves.toBeUndefined();
+    await expect(findCompletedRecording(directory, '2026-08-04', '2026-08-04__05.mp3')).resolves.toBeUndefined();
   });
 
   it('reports successful counts when deleting a later target fails', async () => {

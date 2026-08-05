@@ -103,6 +103,22 @@ export async function listRecordingsForDate(directory: string, date: string): Pr
   };
 }
 
+export async function findCompletedRecording(
+  directory: string,
+  date: string,
+  name: string
+): Promise<CompletedRecording | undefined> {
+  if (!isCompletedRecordingNameForDate(name, date)) return undefined;
+  return (await listCompletedRecordings(directory)).find(
+    (recording) => recording.date === date && recording.name === name
+  );
+}
+
+export function isCompletedRecordingNameForDate(name: string, date: string): boolean {
+  const match = completedRecordingPattern.exec(name);
+  return path.basename(name) === name && match?.[1] === date;
+}
+
 export async function deleteRecordingsForDates(
   directory: string,
   dates: Iterable<string>,

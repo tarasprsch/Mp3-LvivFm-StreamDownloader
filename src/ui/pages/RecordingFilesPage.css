@@ -40,6 +40,24 @@
   white-space: nowrap;
 }
 
+.recording-files-page__playback {
+  min-width: 250px;
+  width: 270px;
+}
+
+.recording-files-page__playback audio {
+  display: block;
+  height: 36px;
+  max-width: 70vw;
+  width: 260px;
+}
+
+.recording-files-page__playback-error {
+  color: #8a1f12;
+  font-size: 0.85rem;
+  margin: 6px 0 0;
+}
+
 .recording-files-page__error {
   background: #ffe0dd;
   border-radius: 6px;
