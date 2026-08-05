@@ -2,7 +2,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ConfigStore, configSchema, defaultConfig } from './config.js';
+import { ConfigStore, configSchema, defaultConfig, exposeSettings, publicSettingsSchema } from './config.js';
 
 describe('configuration', () => {
   it('creates the default config atomically when missing', async () => {
@@ -71,6 +71,80 @@ describe('configuration', () => {
     expect(updated.schedule.timezone).toBe('Europe/Kyiv');
     expect(updated.recording.outputDirectory).toBe('/mp3');
     expect(updated.auth.password).toBe('secret');
+  });
+
+  it.each([
+    ['  https://example.test/live  ', 'https://example.test/live'],
+    ['http://example.test/live', 'http://example.test/live']
+  ])('accepts and trims a public HTTP(S) stream URL', async (input, expected) => {
+    const directory = await tempDirectory();
+    const store = new ConfigStore(directory);
+    await store.load();
+
+    const updated = await store.updatePublicSettings({ stream: { url: input } });
+    const persisted = JSON.parse(await readFile(path.join(directory, 'config.json'), 'utf8'));
+
+    expect(updated.stream.url).toBe(expected);
+    expect(store.value.stream.url).toBe(expected);
+    expect(persisted.stream.url).toBe(expected);
+  });
+
+  it.each([
+    '',
+    '   ',
+    'not a URL',
+    '/live',
+    'ftp://example.test/live',
+    'https://listener:secret@example.test/live',
+    'https://listener@example.test/live'
+  ])('rejects invalid public stream URL %j without changing memory or disk', async (url) => {
+    const directory = await tempDirectory();
+    const configPath = path.join(directory, 'config.json');
+    const store = new ConfigStore(directory);
+    await store.load();
+    const before = store.value;
+    const rawBefore = await readFile(configPath, 'utf8');
+
+    await expect(store.updatePublicSettings({ stream: { url } })).rejects.toThrow();
+
+    expect(store.value).toEqual(before);
+    await expect(readFile(configPath, 'utf8')).resolves.toBe(rawBefore);
+  });
+
+  it('preserves hidden fields when updating only the public stream URL', async () => {
+    const directory = await tempDirectory();
+    const store = new ConfigStore(directory);
+    await store.save({
+      ...defaultConfig,
+      stream: { url: defaultConfig.stream.url, bitrateKbps: 192 },
+      schedule: { ...defaultConfig.schedule, timezone: 'America/Toronto' },
+      recording: { ...defaultConfig.recording, outputDirectory: '/private/recordings' },
+      web: { host: '127.0.0.1', port: 54321 }
+    });
+
+    const updated = await store.updatePublicSettings({ stream: { url: 'https://example.test/next' } });
+
+    expect(updated).toMatchObject({
+      stream: { url: 'https://example.test/next', bitrateKbps: 192 },
+      schedule: { timezone: 'America/Toronto' },
+      recording: { outputDirectory: '/private/recordings' },
+      web: { host: '127.0.0.1', port: 54321 }
+    });
+  });
+
+  it('defines stream URL as an optional public settings patch', () => {
+    expect(publicSettingsSchema.parse({})).toEqual({});
+    expect(publicSettingsSchema.parse({ stream: {} })).toEqual({ stream: {} });
+  });
+
+  it('exposes the stream URL without exposing hidden configuration', () => {
+    expect(exposeSettings(defaultConfig)).toEqual({
+      enabled: defaultConfig.enabled,
+      stream: { url: defaultConfig.stream.url },
+      schedule: { start: defaultConfig.schedule.start, end: defaultConfig.schedule.end },
+      recording: { splitSize: defaultConfig.recording.splitSize },
+      auth: { password: '' }
+    });
   });
 });
 

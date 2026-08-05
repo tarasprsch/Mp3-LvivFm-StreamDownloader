@@ -21,6 +21,7 @@ export function SettingsPage() {
     setError('');
     const payload = {
       enabled: settings.enabled,
+      stream: settings.stream,
       schedule: settings.schedule,
       recording: { splitSize: Number(settings.recording.splitSize) },
       auth: settings.auth.password ? { password: settings.auth.password } : undefined
@@ -64,6 +65,21 @@ export function SettingsPage() {
               onChange={(event) => setSettings({ ...settings, enabled: event.target.checked })}
             />
             Enabled
+          </label>
+        </section>
+        <section className="settings-page__group">
+          <h2>Stream URL</h2>
+          <label className="settings-page__field" htmlFor="stream-url">
+            Stream URL
+            <input
+              id="stream-url"
+              type="url"
+              autoComplete="url"
+              value={settings.stream.url}
+              onChange={(event) =>
+                setSettings({ ...settings, stream: { url: event.target.value } })
+              }
+            />
           </label>
         </section>
         <section className="settings-page__group">

@@ -3,6 +3,22 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 
+export const httpUrlSchema = z.string().trim().superRefine((value, context) => {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    context.addIssue({ code: 'custom', message: 'Stream URL must be a valid absolute URL.' });
+    return;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    context.addIssue({ code: 'custom', message: 'Stream URL must use HTTP or HTTPS.' });
+  }
+  if (parsed.username || parsed.password) {
+    context.addIssue({ code: 'custom', message: 'Stream URL must not include credentials.' });
+  }
+});
+
 export const configSchema = z.object({
   enabled: z.boolean(),
   stream: z.object({
@@ -29,6 +45,11 @@ export const configSchema = z.object({
 
 export const publicSettingsSchema = z.object({
   enabled: z.boolean().optional(),
+  stream: z
+    .object({
+      url: httpUrlSchema.optional()
+    })
+    .optional(),
   schedule: z
     .object({
       start: z.string().regex(/^\d{2}:\d{2}$/).optional(),
@@ -147,6 +168,10 @@ export class ConfigStore extends EventEmitter {
     const next: AppConfig = {
       ...this.current,
       enabled: safePatch.enabled ?? this.current.enabled,
+      stream: {
+        ...this.current.stream,
+        url: safePatch.stream?.url ?? this.current.stream.url
+      },
       schedule: {
         ...this.current.schedule,
         start: safePatch.schedule?.start ?? this.current.schedule.start,
@@ -186,6 +211,9 @@ export class ConfigStore extends EventEmitter {
 export function exposeSettings(config: AppConfig) {
   return {
     enabled: config.enabled,
+    stream: {
+      url: config.stream.url
+    },
     schedule: {
       start: config.schedule.start,
       end: config.schedule.end

@@ -1,6 +1,6 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -155,6 +155,57 @@ describe('app partial file API', () => {
     expect(deleteRecordings).not.toHaveBeenCalled();
   });
 
+  it('returns the stream URL but no hidden configuration from authenticated settings', async () => {
+    const { baseUrl, cookie } = await fixture({});
+
+    const response = await fetch(`${baseUrl}/api/settings`, { headers: { Cookie: cookie } });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ stream: { url: defaultConfig.stream.url } });
+    expect(body.stream).not.toHaveProperty('bitrateKbps');
+    expect(body.schedule).not.toHaveProperty('timezone');
+    expect(body.recording).not.toHaveProperty('outputDirectory');
+    expect(body).not.toHaveProperty('web');
+  });
+
+  it('updates and returns a normalized stream URL through authenticated settings', async () => {
+    const { baseUrl, cookie, configStore } = await fixture({});
+
+    const response = await fetch(`${baseUrl}/api/settings`, {
+      method: 'PUT',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stream: { url: '  https://example.test/live  ' } })
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ stream: { url: 'https://example.test/live' } });
+    expect(configStore.value.stream.url).toBe('https://example.test/live');
+  });
+
+  it.each([
+    '',
+    'not a URL',
+    '/live',
+    'ftp://example.test/live',
+    'https://listener:secret@example.test/live'
+  ])('rejects invalid stream URL %j without changing memory or disk', async (url) => {
+    const { baseUrl, cookie, configStore, directory } = await fixture({});
+    const before = configStore.value;
+    const rawBefore = await readFile(path.join(directory, 'config.json'), 'utf8');
+
+    const response = await fetch(`${baseUrl}/api/settings`, {
+      method: 'PUT',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stream: { url } })
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: expect.any(String) });
+    expect(configStore.value).toEqual(before);
+    await expect(readFile(path.join(directory, 'config.json'), 'utf8')).resolves.toBe(rawBefore);
+  });
+
   it.each([
     [404, 'One or more sessions no longer exist.'],
     [409, 'Stop recording before deleting recordings.'],
@@ -217,7 +268,7 @@ describe('app partial file API', () => {
     });
     const cookie = login.headers.get('set-cookie')?.split(';')[0] ?? '';
     expect(cookie).toContain('lfm_session=');
-    return { baseUrl, cookie };
+    return { baseUrl, cookie, configStore, directory };
   }
 });
 

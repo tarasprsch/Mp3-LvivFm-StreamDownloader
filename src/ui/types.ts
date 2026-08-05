@@ -48,6 +48,7 @@ export type StateResponse = {
 
 export type SettingsResponse = {
   enabled: boolean;
+  stream: { url: string };
   schedule: { start: string; end: string };
   recording: { splitSize: number };
   auth: { password: string };

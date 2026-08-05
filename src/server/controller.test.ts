@@ -45,6 +45,26 @@ describe('capture controller transitions', () => {
     });
   });
 
+  it('keeps an active recording on its URL and uses an updated URL for the next recording', async () => {
+    const fakeRecorder = new FakeRecorder();
+    const { controller, configStore } = await fixture({}, fakeRecorder);
+
+    await expect(controller.manualStart()).resolves.toEqual({ ok: true });
+    expect(fakeRecorder.streamUrls).toEqual([defaultConfig.stream.url]);
+
+    await configStore.updatePublicSettings({ stream: { url: 'https://example.test/next' } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(fakeRecorder.active).toBe(true);
+    expect(fakeRecorder.startCalls).toEqual(['manual']);
+    expect(fakeRecorder.stopCalls).toBe(0);
+
+    await controller.manualStop();
+    await expect(controller.manualStart()).resolves.toEqual({ ok: true });
+
+    expect(fakeRecorder.streamUrls).toEqual([defaultConfig.stream.url, 'https://example.test/next']);
+  });
+
   it('resumes scheduled recording in the next window after a manual stop', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-04T20:10:00.000Z'));
@@ -281,6 +301,8 @@ class FakeRecorder extends EventEmitter implements RecorderLike {
   currentFilename: string | undefined;
   currentPartFilename: string | undefined;
   readonly startCalls: RecorderSource[] = [];
+  readonly streamUrls: string[] = [];
+  stopCalls = 0;
   private session: RecorderSession | undefined;
 
   get status(): RecorderStatus {
@@ -299,6 +321,7 @@ class FakeRecorder extends EventEmitter implements RecorderLike {
   async start(options: Parameters<RecorderLike['start']>[0]): Promise<RecorderSession> {
     this.active = true;
     this.startCalls.push(options.source);
+    this.streamUrls.push(options.streamUrl);
     this.session = {
       id: `fake-session-${this.startCalls.length}`,
       source: options.source,
@@ -312,6 +335,7 @@ class FakeRecorder extends EventEmitter implements RecorderLike {
   }
 
   async stop(): Promise<void> {
+    this.stopCalls += 1;
     if (!this.session) return;
     const session = this.session;
     this.active = false;
@@ -360,7 +384,7 @@ async function fixture(
   const stats = new StatsStore(directory);
   await stats.load();
   const controller = new CaptureController(configStore, logger, stats, recorder, inventory, deleteRecordings);
-  return { controller, recorder, outputDirectory, logger, stats };
+  return { controller, recorder, outputDirectory, logger, stats, configStore };
 }
 
 async function addStoppedSession(stats: StatsStore, id: string, startedAt: string): Promise<void> {
