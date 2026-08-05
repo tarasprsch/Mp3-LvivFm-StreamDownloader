@@ -29,15 +29,16 @@ docker compose down
 On first start, `/data/config.json` is created automatically. The web UI edits only:
 
 - `enabled`
+- `stream.url`
 - `schedule.start`
 - `schedule.end`
 - `recording.splitSize`
 - `auth.password`
 
-The stream URL, timezone, output directory, web host, and web port stay hidden from the UI.
+The timezone, output directory, web host, and web port stay hidden from the UI.
 
 ## Details
 
-The recorder connects to `https://onair.lviv.fm:8443/lviv.fm` with Node's HTTPS client and writes received MP3 bytes directly. It does not use FFmpeg and does not parse MP3 frames. Completed files are named `YYYY-MM-DD__NN.mp3`; active files use `.part` names and are atomically renamed when finalized.
+The recorder connects to the configured stream URL (default: `https://onair.lviv.fm:8443/lviv.fm`) and writes received MP3 bytes directly. It does not use FFmpeg and does not parse MP3 frames. Completed files are named `YYYY-MM-DD__NN.mp3`; active files use `.part` names and are atomically renamed when finalized.
 
 See [docs/CasaOS.md](docs/CasaOS.md) for a beginner-friendly CasaOS setup guide.
