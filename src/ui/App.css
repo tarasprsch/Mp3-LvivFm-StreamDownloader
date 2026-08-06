@@ -29,6 +29,7 @@
 @media (max-width: 760px) {
   .app {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
   }
 
   .app__main {

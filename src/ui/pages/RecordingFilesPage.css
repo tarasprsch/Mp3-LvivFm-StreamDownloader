@@ -34,6 +34,12 @@
   text-align: left;
 }
 
+.recording-files-page__panel th:first-child,
+.recording-files-page__panel td:first-child {
+  white-space: nowrap;
+  width: 1%;
+}
+
 .recording-files-page__panel th:last-child,
 .recording-files-page__panel td:last-child {
   text-align: right;
